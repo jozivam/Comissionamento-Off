@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, type ChangeEvent } from 'react';
 import { Search, Plus, FileText, Save, Download, Trash2, ChevronLeft, ChevronRight, CheckCircle2, Eye, Edit, Camera, Image, X, LogIn, LogOut, Cloud, CloudOff, RefreshCw, BookOpen } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useRef } from 'react';
+import { Network } from '@capacitor/network';
 import { mockData, type EquipmentData } from './data/mockData';
 import { pdfIndex, type PdfSheet } from './data/pdfIndex';
 import { instrumentList } from './data/instrumentList';
@@ -94,16 +95,22 @@ function AppContent() {
       setIsAuthReady(true);
     });
 
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
+    let networkListenerHandle: any;
 
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
+    const initNetwork = async () => {
+      const status = await Network.getStatus();
+      setIsOnline(status.connected);
+      networkListenerHandle = await Network.addListener('networkStatusChange', status => {
+        setIsOnline(status.connected);
+      });
+    };
+    initNetwork();
 
     return () => {
       unsubscribe();
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
+      if (networkListenerHandle) {
+        networkListenerHandle.remove();
+      }
     };
   }, []);
 
