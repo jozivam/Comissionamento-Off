@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useRef } from 'react';
 import { mockData, type EquipmentData } from './data/mockData';
 import { pdfIndex, type PdfSheet } from './data/pdfIndex';
+import { instrumentList } from './data/instrumentList';
+
 import { pageData, type TechnicalPageData } from './data/pageData';
 import { auth, db as firestore, handleFirestoreError, OperationType } from './lib/firebase';
 import { 
@@ -84,7 +86,7 @@ function AppContent() {
   const [isPdfOpen, setIsPdfOpen] = useState(false);
   const [pdfPage, setPdfPage] = useState(1);
   const [pdfSearchTerm, setPdfSearchTerm] = useState('');
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -167,15 +169,6 @@ function AppContent() {
     }
   };
 
-  const scrollRelated = (direction: 'left' | 'right') => {
-    if (scrollContainerRef.current) {
-      const scrollAmount = 200;
-      scrollContainerRef.current.scrollBy({
-        left: direction === 'left' ? -scrollAmount : scrollAmount,
-        behavior: 'smooth'
-      });
-    }
-  };
 
   const login = async () => {
     const provider = new GoogleAuthProvider();
@@ -417,6 +410,19 @@ function AppContent() {
             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg shadow-blue-900/20"
           >
             <LogIn className="w-6 h-6" /> Entrar com Google
+          </button>
+          <button 
+            onClick={() => setUser({
+              uid: 'offline-user',
+              displayName: 'Usuário Local (Offline)',
+              email: 'local@comissionamento.com',
+              isAnonymous: true,
+              emailVerified: false,
+              providerData: []
+            } as any)}
+            className="w-full mt-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-4 px-6 rounded-xl transition-all flex items-center justify-center gap-3 border border-slate-200"
+          >
+            Acessar Modo Local (Offline)
           </button>
           <div className="mt-8 pt-8 border-t border-slate-100">
             <div className="flex items-center justify-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest">
@@ -926,116 +932,6 @@ function AppContent() {
                 )}
               </div>
 
-              {/* Related Equipment Navigation Bar */}
-              {groupTag && (
-                <div className="bg-slate-800 border-t border-slate-700 px-4 py-3 relative group/nav">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mr-2 whitespace-nowrap">Relacionados:</span>
-                    
-                    <div className="relative flex-1 flex items-center">
-                      {/* Left Scroll Button */}
-                      <button 
-                        onClick={() => scrollRelated('left')}
-                        className="absolute left-2 z-10 p-2 bg-slate-900 text-white rounded-full hover:bg-blue-600 shadow-xl border border-slate-700 transition-all active:scale-95"
-                        title="Anterior"
-                      >
-                        <ChevronLeft className="w-4 h-4" />
-                      </button>
-
-                      {/* Scroll Container */}
-                      <div 
-                        ref={scrollContainerRef}
-                        className="flex items-center gap-2 overflow-x-auto scrollbar-hide scroll-smooth px-10"
-                      >
-                        {relatedEquipments.map((equip) => {
-                          const isSaved = savedForms.some(f => f.tag === equip.tag);
-                          const isActive = currentForm.tag === equip.tag;
-                          
-                          return (
-                            <button
-                              key={equip.tag}
-                              onClick={() => switchTag(equip.tag)}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
-                                isActive 
-                                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40 scale-105' 
-                                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                              }`}
-                            >
-                              {equip.tag}
-                              {isSaved && !isActive && (
-                                <div className="w-1.5 h-1.5 bg-green-500 rounded-full" title="Ficha salva" />
-                              )}
-                            </button>
-                          );
-                        })}
-
-                        {/* Add Instrument Button */}
-                        <div className="flex items-center gap-2 ml-4">
-                          {isAddingInstrument ? (
-                            <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-lg border border-slate-700">
-                              <input 
-                                type="text"
-                                value={newInstrumentTag}
-                                onChange={(e) => setNewInstrumentTag(e.target.value.toUpperCase())}
-                                placeholder="TAG Instrumento"
-                                className="bg-transparent text-white text-[10px] font-bold px-2 py-1 outline-none w-24"
-                                autoFocus
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter' && newInstrumentTag) {
-                                    startNewForm({ tag: newInstrumentTag, description: 'Novo Instrumento', type: 'instrument' });
-                                    setIsAddingInstrument(false);
-                                    setNewInstrumentTag('');
-                                  } else if (e.key === 'Escape') {
-                                    setIsAddingInstrument(false);
-                                  }
-                                }}
-                              />
-                              <button 
-                                onClick={() => {
-                                  if (newInstrumentTag) {
-                                    startNewForm({ tag: newInstrumentTag, description: 'Novo Instrumento', type: 'instrument' });
-                                    setIsAddingInstrument(false);
-                                    setNewInstrumentTag('');
-                                  }
-                                }}
-                                className="p-1 text-green-500 hover:bg-green-500/10 rounded"
-                              >
-                                <CheckCircle2 className="w-3 h-3" />
-                              </button>
-                              <button 
-                                onClick={() => setIsAddingInstrument(false)}
-                                className="p-1 text-red-500 hover:bg-red-500/10 rounded"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            </div>
-                          ) : (
-                            <button 
-                              onClick={() => {
-                                setIsAddingInstrument(true);
-                                setNewInstrumentTag(groupTag);
-                              }}
-                              className="px-3 py-1.5 bg-slate-700/50 hover:bg-slate-700 text-slate-400 hover:text-blue-400 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 whitespace-nowrap border border-dashed border-slate-600"
-                            >
-                              <Plus className="w-3 h-3" /> Adicionar Instrumento
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Right Scroll Button */}
-                      <button 
-                        onClick={() => scrollRelated('right')}
-                        className="absolute right-2 z-10 p-2 bg-slate-900 text-white rounded-full hover:bg-blue-600 shadow-xl border border-slate-700 transition-all active:scale-95"
-                        title="Próximo"
-                      >
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* Form Body */}
               <fieldset disabled={isReadOnly} className="p-6 space-y-8">
                 {/* Section 1: Technical Data */}
@@ -1186,47 +1082,6 @@ function AppContent() {
                           </div>
                         </div>
 
-                        {/* Related Instruments Section for Motors */}
-                        <div className="mt-8 pt-8 border-t border-slate-100">
-                          <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 mb-4">
-                            <FileText className="w-4 h-4" />
-                            Instrumentos da Malha
-                          </h3>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                            {relatedEquipments.filter(e => e.type === 'instrument').map(inst => {
-                              const isSaved = savedForms.some(f => f.tag === inst.tag);
-                              return (
-                                <button
-                                  key={inst.tag}
-                                  onClick={() => switchTag(inst.tag)}
-                                  className="flex items-center justify-between p-3 bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 rounded-xl transition-all group text-left"
-                                >
-                                  <div>
-                                    <div className="text-xs font-bold text-slate-700 group-hover:text-blue-700">{inst.tag}</div>
-                                    <div className="text-[10px] text-slate-400 line-clamp-1">{inst.description}</div>
-                                  </div>
-                                  {isSaved ? (
-                                    <CheckCircle2 className="w-4 h-4 text-green-500" />
-                                  ) : (
-                                    <Plus className="w-4 h-4 text-slate-300 group-hover:text-blue-400" />
-                                  )}
-                                </button>
-                              );
-                            })}
-                            <button 
-                              onClick={() => {
-                                setIsAddingInstrument(true);
-                                setNewInstrumentTag(groupTag);
-                                // Scroll to top to see the input in the nav bar
-                                window.scrollTo({ top: 0, behavior: 'smooth' });
-                              }}
-                              className="flex items-center justify-center gap-2 p-3 bg-white border border-dashed border-slate-300 hover:border-blue-400 hover:bg-blue-50 rounded-xl transition-all group text-slate-400 hover:text-blue-600"
-                            >
-                              <Plus className="w-4 h-4" />
-                              <span className="text-xs font-bold">Novo Instrumento</span>
-                            </button>
-                          </div>
-                        </div>
                       </>
                     ) : (
                       <>
@@ -1555,6 +1410,90 @@ function AppContent() {
                     )}
                   </div>
                 </section>
+
+                {/* Universal Loop Navigation Section */}
+                {groupTag && (
+                  <section className="mt-12 pt-8 border-t border-slate-200">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                        <FileText className="w-4 h-4" />
+                        Navegação da Malha
+                      </h3>
+                      <span className="text-[10px] font-medium text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full">
+                        Motor: {groupTag}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                      {relatedEquipments.map(equip => {
+                        const isSaved = savedForms.some(f => f.tag === equip.tag);
+                        const isActive = currentForm.tag === equip.tag;
+                        return (
+                          <div className="flex flex-col gap-1 w-full">
+                            <div
+                              onClick={() => switchTag(equip.tag)}
+                              className={`flex items-center justify-between p-3 border transition-all group text-left rounded-xl cursor-pointer ${
+                                isActive 
+                                  ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-600/20' 
+                                  : 'bg-white hover:bg-slate-50 border-slate-200 hover:border-slate-300'
+                              }`}
+                            >
+                              <div className="flex-1 min-w-0 mr-2">
+                                <div className={`text-xs font-bold truncate ${isActive ? 'text-white' : 'text-slate-700'}`}>
+                                  {equip.tag}
+                                </div>
+                                <div className={`text-[10px] line-clamp-1 ${isActive ? 'text-blue-100' : 'text-slate-400'}`}>
+                                  {equip.description || (equip.type === 'motor' ? 'Motor' : 'Instrumento')}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {isActive ? (
+                                  <div className="w-5 h-5 bg-white/20 rounded-full flex items-center justify-center">
+                                    <Edit className="w-3 h-3 text-white" />
+                                  </div>
+                                ) : isSaved ? (
+                                  <CheckCircle2 className="w-4 h-4 text-green-500" />
+                                ) : (
+                                  <Plus className="w-4 h-4 text-slate-300 group-hover:text-blue-400" />
+                                )}
+                              </div>
+                            </div>
+                            
+                            {pdfIndex.some(p => p.tag === equip.tag || equip.tag.startsWith(p.tag)) && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const sheet = pdfIndex.find(p => equip.tag === p.tag || equip.tag.startsWith(p.tag));
+                                  if (sheet) {
+                                    setPdfPage(sheet.page);
+                                    setIsPdfOpen(true);
+                                  }
+                                }}
+                                className="flex items-center justify-center gap-1.5 py-1 text-[8px] font-black uppercase tracking-tighter text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all border border-transparent hover:border-blue-100"
+                              >
+                                <Eye className="w-3 h-3" />
+                                Ver no Projeto
+                              </button>
+                            )}
+                          </div>
+
+                        );
+                      })}
+                      {!isReadOnly && (
+                        <button 
+                          onClick={() => {
+                            setIsAddingInstrument(true);
+                            setNewInstrumentTag(groupTag);
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                          className="flex items-center justify-center gap-2 p-3 bg-white border border-dashed border-slate-300 hover:border-blue-400 hover:bg-blue-50 rounded-xl transition-all group text-slate-400 hover:text-blue-600"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span className="text-xs font-bold">Novo Item</span>
+                        </button>
+                      )}
+                    </div>
+                  </section>
+                )}
               </fieldset>
               
               {!isReadOnly && (
@@ -1704,34 +1643,57 @@ function AppContent() {
                   />
                   {pdfSearchTerm && (
                     <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-2xl z-[80] max-h-80 overflow-y-auto divide-y divide-slate-100">
-                      {pdfIndex.filter(p => 
-                        p.tag.toLowerCase().includes(pdfSearchTerm.toLowerCase()) || 
-                        p.description.toLowerCase().includes(pdfSearchTerm.toLowerCase())
-                      ).length > 0 ? (
-                        pdfIndex.filter(p => 
-                          p.tag.toLowerCase().includes(pdfSearchTerm.toLowerCase()) || 
-                          p.description.toLowerCase().includes(pdfSearchTerm.toLowerCase())
-                        ).map(item => (
-                          <button
-                            key={`${item.tag}-${item.page}`}
-                            onClick={() => {
-                              setPdfPage(item.page);
-                              setPdfSearchTerm('');
-                            }}
-                            className="w-full text-left p-3 hover:bg-blue-50 transition-colors flex items-center justify-between group"
-                          >
-                            <div className="min-w-0">
-                              <div className="text-xs font-bold text-slate-700 group-hover:text-blue-600 truncate">{item.tag}</div>
-                              <div className="text-[10px] text-slate-400 truncate">{item.description}</div>
-                            </div>
-                            <div className="text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded shrink-0 ml-2">FL. {String(item.page).padStart(3, '0')}</div>
-                          </button>
-                        ))
-                      ) : (
-                        <div className="p-4 text-center text-xs text-slate-400">Nenhum resultado encontrado</div>
-                      )}
+                      {(() => {
+                        const term = pdfSearchTerm.toLowerCase();
+                        
+                        // Combine data
+                        const results = [
+                          ...pdfIndex.map(p => ({ ...p, source: 'index' })),
+                          ...instrumentList
+                            .filter(ins => !pdfIndex.some(p => p.tag === ins.tag))
+                            .map(ins => ({ 
+                              tag: ins.tag, 
+                              page: -1, 
+                              description: `${ins.equipment} - ${ins.instrument}`, 
+                              source: 'csv' 
+                            }))
+                        ].filter(item => 
+                          item.tag.toLowerCase().includes(term) || 
+                          item.description.toLowerCase().includes(term)
+                        );
+
+                        if (results.length > 0) {
+                          return results.map(item => (
+                            <button
+                              key={`${item.tag}-${item.page}-${item.source}`}
+                              onClick={() => {
+                                if (item.page !== -1) {
+                                  setPdfPage(item.page);
+                                  setPdfSearchTerm('');
+                                }
+                              }}
+                              className={`w-full text-left p-3 transition-colors flex items-center justify-between group ${item.page === -1 ? 'opacity-50 cursor-not-allowed bg-slate-50' : 'hover:bg-blue-50 cursor-pointer'}`}
+                            >
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <div className="text-xs font-bold text-slate-700 group-hover:text-blue-600 truncate">{item.tag}</div>
+                                  {item.source === 'csv' && (
+                                    <span className="text-[7px] px-1 bg-amber-100 text-amber-700 rounded font-black uppercase">Não Mapeado</span>
+                                  )}
+                                </div>
+                                <div className="text-[10px] text-slate-400 truncate">{item.description}</div>
+                              </div>
+                              <div className="text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded shrink-0 ml-2">
+                                {item.page !== -1 ? `FL. ${String(item.page).padStart(3, '0')}` : '--'}
+                              </div>
+                            </button>
+                          ));
+                        }
+                        return <div className="p-4 text-center text-xs text-slate-400">Nenhum resultado encontrado</div>;
+                      })()}
                     </div>
                   )}
+
                 </div>
 
                 <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
@@ -1770,124 +1732,33 @@ function AppContent() {
                 </div>
               </div>
 
-              {/* PDF Content Area */}
-              <div className="flex-1 overflow-auto bg-slate-200 p-4 sm:p-8 flex justify-center items-start">
-                <div className="bg-white shadow-2xl rounded-sm w-full max-w-5xl aspect-[1.414/1] relative flex flex-col items-center justify-center overflow-hidden border border-slate-300">
-                  {/* Simulated PDF Page Content */}
-                  <div className="absolute inset-0 p-12 flex flex-col">
-                    <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4 mb-8">
-                      <div className="space-y-1">
-                        <div className="text-2xl font-black tracking-tighter text-slate-900 italic">Votorantim <span className="text-blue-600">Cimentos</span></div>
-                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">Unidade Edealina - GO</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase">Folha</div>
-                        <div className="text-3xl font-black text-slate-900">{String(pdfPage).padStart(3, '0')}</div>
-                      </div>
+              <div className="flex-1 bg-slate-200 overflow-hidden relative">
+                <iframe 
+                  key={pdfPage}
+                  src={`/arquivos/ED-E-Z2000-409-02.pdf#page=${pdfPage}&view=FitH`}
+                  className="w-full h-full border-none shadow-inner"
+                  title="Projeto Detalhado"
+                />
+                
+                {/* Floating Info Overlay */}
+                <div className="absolute bottom-6 left-6 pointer-events-none">
+                  <div className="bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-white/20 shadow-2xl flex items-center gap-4">
+                    <div className="w-12 h-12 bg-blue-600 text-white rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/20">
+                      <FileText className="w-6 h-6" />
                     </div>
-
-                    {/* Show current tag info if on a specific page */}
-                    {pageData[pdfPage] ? (
-                      <div className="flex-1 flex flex-col">
-                        <div className="grid grid-cols-2 gap-8 mb-12">
-                          <div className="space-y-6">
-                            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
-                              <div className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mb-2">Identificação do Equipamento</div>
-                              <div className="text-4xl font-black text-slate-900 tracking-tighter mb-1">{pageData[pdfPage].title}</div>
-                              <div className="text-sm font-bold text-slate-500">{pageData[pdfPage].subtitle}</div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                              {pageData[pdfPage].details.map((detail, idx) => (
-                                <div key={idx} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-                                  <div className="text-[8px] font-bold text-slate-400 uppercase tracking-wider mb-1">{detail.label}</div>
-                                  <div className="text-sm font-black text-slate-800">{detail.value}</div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-
-                          <div className="space-y-6">
-                            {pageData[pdfPage].connections && (
-                              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-lg">
-                                <div className="bg-slate-900 p-3 text-white text-[10px] font-bold uppercase tracking-widest text-center">Tabela de Interligação de Campo</div>
-                                <table className="w-full text-[10px]">
-                                  <thead className="bg-slate-50 border-b border-slate-200">
-                                    <tr>
-                                      <th className="p-2 text-left font-bold text-slate-500">BORNE</th>
-                                      <th className="p-2 text-left font-bold text-slate-500">ANILHA</th>
-                                      <th className="p-2 text-left font-bold text-slate-500">DESTINO</th>
-                                      <th className="p-2 text-left font-bold text-slate-500">DESCRIÇÃO</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-slate-100">
-                                    {pageData[pdfPage].connections?.map((conn, idx) => (
-                                      <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                                        <td className="p-2 font-black text-slate-700">{conn.terminal}</td>
-                                        <td className="p-2 font-mono text-blue-600">{conn.wire}</td>
-                                        <td className="p-2 font-bold text-slate-600">{conn.dest}</td>
-                                        <td className="p-2 text-slate-500">{conn.desc}</td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            )}
-                            
-                            <div className="bg-blue-50/50 p-6 rounded-2xl border border-blue-100 flex flex-col items-center justify-center text-center space-y-4">
-                              <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center">
-                                <FileText className="w-6 h-6" />
-                              </div>
-                              <div>
-                                <div className="text-xs font-bold text-blue-800">Documento de Engenharia</div>
-                                <div className="text-[10px] text-blue-600">Este diagrama reflete a montagem conforme projeto (As-Built).</div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
+                    <div>
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Página Atual</div>
+                      <div className="text-lg font-black text-slate-800 leading-none">
+                        {pdfIndex.find(p => p.page === pdfPage)?.tag || `FOLHA ${pdfPage}`}
                       </div>
-                    ) : (
-                      <div className="flex-1 flex flex-col items-center justify-center space-y-8">
-                        <div className="relative">
-                          <BookOpen className="w-32 h-32 text-slate-100" />
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <Search className="w-12 h-12 text-slate-300 animate-pulse" />
-                          </div>
-                        </div>
-                        <div className="text-center space-y-4 max-w-md">
-                          <div className="space-y-1">
-                            <div className="text-2xl font-black text-slate-900 uppercase tracking-widest">Folha de Detalhamento</div>
-                            <div className="text-sm font-bold text-blue-600">
-                              {pdfIndex.find(p => p.page === pdfPage)?.tag || 'FL. ' + pdfPage}
-                            </div>
-                          </div>
-                          <p className="text-xs text-slate-400 font-medium leading-relaxed">
-                            {pdfIndex.find(p => p.page === pdfPage)?.description || 'Esta folha contém diagramas de interligação e detalhes técnicos do projeto.'}
-                          </p>
-                          <div className="pt-4 flex flex-wrap justify-center gap-2">
-                            <span className="px-2 py-1 bg-slate-100 text-slate-500 text-[8px] font-bold rounded uppercase">Diagrama Unifilar</span>
-                            <span className="px-2 py-1 bg-slate-100 text-slate-500 text-[8px] font-bold rounded uppercase">Interligação</span>
-                            <span className="px-2 py-1 bg-slate-100 text-slate-500 text-[8px] font-bold rounded uppercase">Lista de Cabos</span>
-                          </div>
-                        </div>
+                      <div className="text-[10px] font-bold text-blue-600 truncate max-w-[200px]">
+                        {pdfIndex.find(p => p.page === pdfPage)?.description || 'Visualização do Projeto Técnico'}
                       </div>
-                    )}
-
-                    <div className="mt-auto pt-4 border-t border-slate-200 flex justify-between items-end text-[8px] font-bold text-slate-400 uppercase tracking-widest">
-                      <div>DI-A-20V093E-002</div>
-                      <div className="text-center">SM&A - Sistemas Elétricos e Automação</div>
-                      <div>Rev. 02 - 26/01/2026</div>
-                    </div>
-                  </div>
-                  
-                  {/* Watermark */}
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none overflow-hidden">
-                    <div className="text-[200px] font-black text-slate-50/50 -rotate-45 whitespace-nowrap">
-                      PROJETO VC
                     </div>
                   </div>
                 </div>
               </div>
+
 
               {/* PDF Footer / Quick Nav */}
               <div className="bg-white border-t border-slate-200 p-2 flex items-center justify-center gap-1 overflow-x-auto no-scrollbar">
