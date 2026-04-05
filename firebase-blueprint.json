@@ -1,0 +1,82 @@
+{
+  "entities": {
+    "Equipment": {
+      "title": "Equipment",
+      "description": "Master data for equipment and instruments",
+      "type": "object",
+      "properties": {
+        "tag": { "type": "string", "description": "Unique identifier for the equipment" },
+        "description": { "type": "string" },
+        "manufacturer": { "type": "string" },
+        "model": { "type": "string" },
+        "type": { "type": "string", "enum": ["motor", "instrument"] },
+        "power": { "type": "string" },
+        "current": { "type": "string" },
+        "rpm": { "type": "string" },
+        "voltage": { "type": "string" },
+        "insulationClass": { "type": "string" },
+        "protectionDegree": { "type": "string" },
+        "motorConnection": { "type": "string" },
+        "serviceFactor": { "type": "string" },
+        "frequency": { "type": "string" },
+        "powerFactor": { "type": "string" },
+        "range": { "type": "string" },
+        "location": { "type": "string" },
+        "instrumentType": { "type": "string" },
+        "supplyVoltage": { "type": "string" },
+        "inputSignal": { "type": "string" },
+        "outputSignal": { "type": "string" },
+        "operationValue": { "type": "string" }
+      },
+      "required": ["tag", "type"]
+    },
+    "CommissioningForm": {
+      "title": "Commissioning Form",
+      "description": "A completed or draft commissioning form",
+      "type": "object",
+      "properties": {
+        "tag": { "type": "string" },
+        "formType": { "type": "string", "enum": ["motor", "instrument"] },
+        "description": { "type": "string" },
+        "manufacturer": { "type": "string" },
+        "model": { "type": "string" },
+        "serialNumber": { "type": "string" },
+        "date": { "type": "string" },
+        "status": { "type": "string", "enum": ["draft", "completed"] },
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "results": { "type": "object" },
+        "photos": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["tag", "formType", "status", "userId"]
+    },
+    "User": {
+      "title": "User",
+      "description": "User profile and role",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "inspector"] }
+      },
+      "required": ["uid", "email", "role"]
+    }
+  },
+  "firestore": {
+    "/equipment/{tag}": {
+      "schema": "Equipment",
+      "description": "Master equipment data"
+    },
+    "/forms/{formId}": {
+      "schema": "CommissioningForm",
+      "description": "Commissioning forms submitted by users"
+    },
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "User profiles"
+    }
+  }
+}

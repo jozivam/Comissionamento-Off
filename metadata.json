@@ -1,0 +1,5 @@
+{
+  "name": "Comissionamento Offline",
+  "description": "App para preenchimento de fichas de comissionamento elétrico e instrumentação com suporte offline.",
+  "requestFramePermissions": ["camera"]
+}
