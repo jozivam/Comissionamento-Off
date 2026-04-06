@@ -18,7 +18,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           java-version: '21'
-          distribution: 'temurin'
+          distribution: 'microsoft'
           cache: gradle
 
       - name: Set up Node.js 20
@@ -39,6 +39,7 @@ jobs:
       - name: Debug Info
         run: |
           java -version
+          javac -version
           echo "JAVA_HOME: $JAVA_HOME"
 
       - name: Run Gradle Assemble Debug
