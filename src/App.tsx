@@ -31,6 +31,9 @@ import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import ErrorBoundary from './components/ErrorBoundary';
 
+const LOCAL_FORMS_STORAGE_KEY = 'commissioning.forms.v1';
+const OFFLINE_USER_ID = 'offline-user';
+
 export interface CommissioningForm {
   id?: string;
   formType: 'motor' | 'instrument';
@@ -71,9 +74,62 @@ export interface CommissioningForm {
   updatedAt: any;
 }
 
+const createLocalFormId = () => `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+const isFirestoreTimestamp = (value: unknown): value is Timestamp =>
+  value instanceof Timestamp || (
+    !!value &&
+    typeof value === 'object' &&
+    'toDate' in value &&
+    typeof (value as { toDate?: unknown }).toDate === 'function'
+  );
+
+const formatSavedDate = (value: unknown) => {
+  if (isFirestoreTimestamp(value)) {
+    return value.toDate().toLocaleDateString();
+  }
+
+  if (typeof value === 'string' || typeof value === 'number' || value instanceof Date) {
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime())) {
+      return date.toLocaleDateString();
+    }
+  }
+
+  return 'Recém salvo';
+};
+
+const sortFormsByUpdatedAt = (forms: CommissioningForm[]) =>
+  [...forms].sort((a, b) => {
+    const getTime = (value: unknown) => {
+      if (isFirestoreTimestamp(value)) return value.toDate().getTime();
+      const date = new Date(value as string | number | Date);
+      return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+    };
+
+    return getTime(b.updatedAt) - getTime(a.updatedAt);
+  });
+
+const readLocalForms = (): CommissioningForm[] => {
+  try {
+    const stored = localStorage.getItem(LOCAL_FORMS_STORAGE_KEY);
+    return stored ? sortFormsByUpdatedAt(JSON.parse(stored) as CommissioningForm[]) : [];
+  } catch (error) {
+    console.error('Erro ao carregar fichas locais:', error);
+    return [];
+  }
+};
+
+const writeLocalForms = (forms: CommissioningForm[]) => {
+  localStorage.setItem(LOCAL_FORMS_STORAGE_KEY, JSON.stringify(sortFormsByUpdatedAt(forms)));
+};
+
+const isOfflineUser = (user: { uid?: string; isAnonymous?: boolean } | null | undefined) =>
+  !user || user.uid === OFFLINE_USER_ID || user.isAnonymous;
+
 function AppContent() {
   const [user, setUser] = useState<any>({
-    uid: 'offline-user',
+    uid: OFFLINE_USER_ID,
     displayName: 'Equipe de Campo',
     email: 'offline@projeto.com',
     isAnonymous: true,
@@ -102,6 +158,7 @@ function AppContent() {
   useEffect(() => {
     // Mode Offline: Firebase Auth listener removed to prevent null user state
     setIsAuthReady(true);
+    setSavedForms(readLocalForms());
 
     let networkListenerHandle: any;
 
@@ -123,6 +180,11 @@ function AppContent() {
 
   useEffect(() => {
     if (!user) return;
+
+    if (isOfflineUser(user)) {
+      setSavedForms(readLocalForms());
+      return;
+    }
 
     const q = query(
       collection(firestore, 'forms'),
@@ -204,19 +266,35 @@ function AppContent() {
   const saveForm = async () => {
     if (!currentForm.tag || !user) return;
 
+    const now = new Date().toISOString();
     const formToSave = {
       ...currentForm,
       userId: user.uid,
       userEmail: user.email || '',
-      updatedAt: serverTimestamp(),
-      status: 'draft'
+      updatedAt: isOfflineUser(user) ? now : serverTimestamp(),
+      status: 'draft' as const
     };
 
     if (!currentForm.createdAt) {
-      formToSave.createdAt = serverTimestamp();
+      formToSave.createdAt = isOfflineUser(user) ? now : serverTimestamp();
     }
 
     try {
+      if (isOfflineUser(user)) {
+        const existingId = currentForm.id || savedForms.find(form => form.tag === currentForm.tag)?.id || createLocalFormId();
+        const localForm = { ...formToSave, id: existingId } as CommissioningForm;
+        const nextForms = sortFormsByUpdatedAt([
+          localForm,
+          ...savedForms.filter(form => form.id !== existingId && form.tag !== currentForm.tag),
+        ]);
+
+        writeLocalForms(nextForms);
+        setSavedForms(nextForms);
+        setCurrentForm(localForm);
+        setView('dashboard');
+        return;
+      }
+
       if (currentForm.id) {
         await updateDoc(doc(firestore, 'forms', currentForm.id), formToSave);
       } else {
@@ -230,6 +308,18 @@ function AppContent() {
 
   const deleteForm = async (id: string) => {
     try {
+      if (isOfflineUser(user)) {
+        const nextForms = savedForms.filter(form => form.id !== id);
+        writeLocalForms(nextForms);
+        setSavedForms(nextForms);
+        setFormToDelete(null);
+        if (currentForm.id === id) {
+          setView('dashboard');
+          setCurrentForm({});
+        }
+        return;
+      }
+
       await deleteDoc(doc(firestore, 'forms', id));
       setFormToDelete(null);
       if (currentForm.id === id) {
@@ -746,9 +836,7 @@ function AppContent() {
                                 </div>
                                 <p className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
                                   <Clock className="w-3 h-3" /> 
-                                  {formsInGroup[0].updatedAt instanceof Timestamp 
-                                    ? formsInGroup[0].updatedAt.toDate().toLocaleDateString()
-                                    : 'Recém salvo'}
+                                  {formatSavedDate(formsInGroup[0].updatedAt)}
                                 </p>
                               </div>
                               <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
