@@ -8,103 +8,91 @@
 
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-900 antialiased;
+    @apply bg-slate-50 text-slate-900 antialiased font-sans;
+    background-image: radial-gradient(at 0% 0%, rgba(37, 99, 235, 0.05) 0px, transparent 50%),
+                      radial-gradient(at 100% 100%, rgba(245, 158, 11, 0.05) 0px, transparent 50%);
+    min-height: 100vh;
   }
 }
 
-.line-clamp-1 {
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+/* Glassmorphism Classes */
+.glass-panel {
+  @apply bg-white/70 backdrop-blur-md border border-white/20 shadow-xl;
 }
 
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
+.glass-card {
+  @apply bg-white/80 backdrop-blur-sm border border-slate-200/50 shadow-sm hover:shadow-md transition-all duration-300;
 }
 
-.scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+/* UI Elements */
+.btn-primary {
+  @apply bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-2xl shadow-lg shadow-blue-600/20 active:scale-95 transition-all flex items-center justify-center gap-2;
 }
 
-/* PDF Viewer Styles */
+.btn-secondary {
+  @apply bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 px-6 rounded-2xl active:scale-95 transition-all flex items-center justify-center gap-2;
+}
+
+.input-field {
+  @apply w-full px-4 py-3.5 bg-white border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all shadow-inner;
+}
+
+/* Status Colors */
+.status-draft { @apply border-l-4 border-amber-500; }
+.status-completed { @apply border-l-4 border-green-500; }
+
+/* Custom Scrollbar for Mobile */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { @apply bg-slate-300 rounded-full; }
+
+/* PDF Viewer Mobile Optimization */
 .pdf-viewer-overlay {
-  @apply fixed inset-0 z-[70] flex items-center justify-center p-0 sm:p-4 bg-slate-900/80 backdrop-blur-md;
+  @apply fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/95 backdrop-blur-xl p-0 md:p-6;
 }
 
 .pdf-viewer-modal {
-  @apply relative bg-slate-100 w-full h-full sm:max-w-6xl sm:h-[90vh] sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col;
+  @apply relative bg-white w-full h-full md:max-w-7xl md:h-[95vh] md:rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col;
 }
 
 .pdf-viewer-header {
-  @apply bg-white border-b border-slate-200 p-4 flex items-center justify-between shrink-0;
-}
-
-.pdf-viewer-header-info {
-  @apply flex items-center gap-3 min-w-0;
+  @apply bg-white border-b border-slate-100 p-4 md:p-6 flex items-center justify-between shrink-0;
 }
 
 .pdf-tag-badge {
-  @apply px-2 py-1 bg-blue-600 text-white text-xs font-bold rounded-lg shadow-sm shrink-0;
-}
-
-.pdf-viewer-title {
-  @apply text-sm text-slate-800 leading-tight truncate;
-}
-
-.pdf-viewer-subtitle {
-  @apply text-slate-400 font-normal;
-}
-
-.pdf-close-btn {
-  @apply p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-400 hover:text-slate-600 font-bold;
-}
-
-.pdf-viewer-toolbar {
-  @apply bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between gap-4 shrink-0 overflow-x-auto;
-}
-
-.pdf-toolbar-nav {
-  @apply flex items-center gap-3 shrink-0;
-}
-
-.pdf-nav-btn {
-  @apply px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-lg transition-all disabled:opacity-30;
-}
-
-.pdf-page-info {
-  @apply text-xs font-medium text-slate-500 whitespace-nowrap;
-}
-
-.pdf-toolbar-zoom {
-  @apply flex items-center gap-1 shrink-0;
-}
-
-.pdf-zoom-btn {
-  @apply w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-all;
-}
-
-.pdf-zoom-label {
-  @apply text-[10px] font-bold text-slate-400 w-10 text-center;
+  @apply px-3 py-1 bg-blue-600 text-white text-[10px] font-black rounded-full shadow-lg shadow-blue-600/30 uppercase tracking-wider;
 }
 
 .pdf-canvas-area {
-  @apply flex-1 overflow-auto bg-slate-200 flex justify-center p-4 relative;
+  @apply flex-1 overflow-auto bg-slate-100 flex justify-center p-4 md:p-8;
 }
 
-.pdf-canvas {
-  @apply shadow-2xl bg-white max-w-full;
+.pdf-toolbar-mobile {
+  @apply fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-slate-900/90 backdrop-blur-md p-2 rounded-2xl border border-white/10 shadow-2xl z-[110];
 }
 
-.pdf-loading-overlay {
-  @apply absolute inset-0 flex flex-col items-center justify-center bg-slate-100/50 backdrop-blur-sm z-10 gap-3 text-blue-600 font-medium;
+.pdf-nav-btn-mobile {
+  @apply w-12 h-12 flex items-center justify-center bg-white/10 text-white rounded-xl hover:bg-white/20 active:scale-90 transition-all disabled:opacity-20;
 }
 
-.pdf-spinner {
-  @apply w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin;
+.pdf-page-display {
+  @apply px-4 py-2 bg-white/5 text-white text-xs font-black rounded-lg min-w-[80px] text-center border border-white/5;
 }
 
-.pdf-error-msg {
-  @apply p-8 text-center text-red-500 font-bold;
+/* Animations */
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-5px); }
+  100% { transform: translateY(0px); }
+}
+
+.animate-float { animation: float 3s ease-in-out infinite; }
+
+/* Mobile Menu & Dashboard */
+.mobile-nav-bottom {
+  @apply fixed bottom-0 left-0 right-0 h-20 bg-white/80 backdrop-blur-lg border-t border-slate-200 flex items-center justify-around px-6 z-40;
+}
+
+.nav-item-active {
+  @apply relative text-blue-600 after:absolute after:-bottom-2 after:left-1/2 after:-translate-x-1/2 after:w-1 after:h-1 after:bg-blue-600 after:rounded-full;
 }

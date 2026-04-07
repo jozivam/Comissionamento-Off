@@ -41,7 +41,7 @@ async function getPdfDocument(url: string) {
 interface PdfViewerProps {
   /** URL ou caminho do arquivo PDF */
   pdfUrl: string;
-  /** Número da página a exibir (1-indexed) */
+  /** Número da página base a exibir (antes do offset) */
   pageNumber: number;
   /** Callback para fechar/minimizar o viewer */
   onClose: () => void;
@@ -49,6 +49,10 @@ interface PdfViewerProps {
   equipmentTag?: string;
   /** Descrição do equipamento */
   equipmentDescription?: string;
+  /** Offset atual para calibração */
+  currentOffset: number;
+  /** Callback para alterar o offset */
+  onOffsetChange: (newOffset: number) => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -60,6 +64,8 @@ export default function PdfViewer({
   onClose,
   equipmentTag,
   equipmentDescription,
+  currentOffset,
+  onOffsetChange,
 }: PdfViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -155,6 +161,21 @@ export default function PdfViewer({
             <button onClick={goToNext} disabled={currentPage >= totalPages} className="pdf-nav-btn">Próx. ›</button>
           </div>
           <div className="pdf-toolbar-zoom">
+            <div className="pdf-offset-control" title="Ajuste o offset se a página estiver errada">
+              <span>Offset:</span>
+              <button 
+                onClick={() => onOffsetChange(currentOffset - 1)}
+                className="pdf-offset-btn"
+              >-</button>
+              <strong className={currentOffset !== 0 ? 'text-amber-600' : ''}>
+                {currentOffset > 0 ? `+${currentOffset}` : currentOffset}
+              </strong>
+              <button 
+                onClick={() => onOffsetChange(currentOffset + 1)}
+                className="pdf-offset-btn"
+              >+</button>
+            </div>
+            <div className="pdf-toolbar-divider" />
             <button onClick={zoomOut} className="pdf-zoom-btn" title="Diminuir zoom">−</button>
             <span className="pdf-zoom-label">{Math.round(scale * 100)}%</span>
             <button onClick={zoomIn} className="pdf-zoom-btn" title="Aumentar zoom">+</button>
