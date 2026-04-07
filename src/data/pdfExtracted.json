@@ -1,0 +1,412 @@
+{
+  "totalPages": 359,
+  "extractedAt": "2026-04-06T23:36:40.626Z",
+  "index": [
+    {
+      "page": 2,
+      "tag": "P1U22M1",
+      "description": "- MOTOR DO VENTILADOR DA REGUEIRA P1U23"
+    },
+    {
+      "page": 50,
+      "tag": "Z2B01Q1",
+      "description": "- BALANÇA DOSADORA DE GESSO - SENSOR DE FLUXO BAIXO DE MATERIAL \t100"
+    },
+    {
+      "page": 150,
+      "tag": "Z2M05",
+      "description": "- UNIDADE DE LUBRIFICAÇÃO DO MANCAL DE ENTRADA DO MOINHO"
+    },
+    {
+      "page": 108,
+      "tag": "Z2K03M1",
+      "description": "- BOMBA DE INJEÇÃO DE ÁGUA NO MOINHO"
+    },
+    {
+      "page": 205,
+      "tag": "Z2P31",
+      "description": "- FILTRO DE MANGAS"
+    },
+    {
+      "page": 250,
+      "tag": "Z2P51Q1",
+      "description": "- FILTRO DE MANGAS CÂMARA 8 \t300 \tZ2U05 - VÁLVULA ROTATIVA"
+    },
+    {
+      "page": 2,
+      "tag": "Z2P31Q1",
+      "description": "- FILTRO DE MANGAS CÂMARA 3"
+    },
+    {
+      "page": 199,
+      "tag": "Z2P31Q1",
+      "description": "- FILTRO DE MANGAS CÂMARA 2"
+    }
+  ],
+  "pageData": {
+    "8": {
+      "page": 8,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "SU6.3"
+    },
+    "11": {
+      "page": 11,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "SU6.3"
+    },
+    "12": {
+      "page": 12,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "SU6.3"
+    },
+    "14": {
+      "page": 14,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "SU6.3"
+    },
+    "15": {
+      "page": 15,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "SU6.3"
+    },
+    "37": {
+      "page": 37,
+      "salaEletrica": "SU6.3"
+    },
+    "38": {
+      "page": 38,
+      "salaEletrica": "SU6.3"
+    },
+    "44": {
+      "page": 44,
+      "salaEletrica": "SU6.3"
+    },
+    "45": {
+      "page": 45,
+      "salaEletrica": "SU6.3"
+    },
+    "51": {
+      "page": 51,
+      "salaEletrica": "SU6.3"
+    },
+    "52": {
+      "page": 52,
+      "salaEletrica": "SU6.3"
+    },
+    "58": {
+      "page": 58,
+      "salaEletrica": "SU6.3"
+    },
+    "59": {
+      "page": 59,
+      "salaEletrica": "SU6.3"
+    },
+    "65": {
+      "page": 65,
+      "salaEletrica": "SU6.3"
+    },
+    "70": {
+      "page": 70,
+      "salaEletrica": "SU6.3"
+    },
+    "73": {
+      "page": 73,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "74": {
+      "page": 74,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "76": {
+      "page": 76,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "79": {
+      "page": 79,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "80": {
+      "page": 80,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "81": {
+      "page": 81,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "88": {
+      "page": 88,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "89": {
+      "page": 89,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "91": {
+      "page": 91,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "92": {
+      "page": 92,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "93": {
+      "page": 93,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "99": {
+      "page": 99,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "100": {
+      "page": 100,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "102": {
+      "page": 102,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "104": {
+      "page": 104,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "107": {
+      "page": 107,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "108": {
+      "page": 108,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "109": {
+      "page": 109,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "111": {
+      "page": 111,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "112": {
+      "page": 112,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "121": {
+      "page": 121,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "125": {
+      "page": 125,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "129": {
+      "page": 129,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "140": {
+      "page": 140,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "147": {
+      "page": 147,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "160": {
+      "page": 160,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "173": {
+      "page": 173,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "178": {
+      "page": 178,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "181": {
+      "page": 181,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "182": {
+      "page": 182,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "185": {
+      "page": 185,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "188": {
+      "page": 188,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "191": {
+      "page": 191,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "194": {
+      "page": 194,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "210": {
+      "page": 210,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "267": {
+      "page": 267,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "270": {
+      "page": 270,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "273": {
+      "page": 273,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "281": {
+      "page": 281,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "283": {
+      "page": 283,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "286": {
+      "page": 286,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "288": {
+      "page": 288,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "293": {
+      "page": 293,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "297": {
+      "page": 297,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "304": {
+      "page": 304,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "305": {
+      "page": 305,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "313": {
+      "page": 313,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "316": {
+      "page": 316,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    },
+    "348": {
+      "page": 348,
+      "ccm": "SALA",
+      "gaveta": "CCM",
+      "salaEletrica": "TÍPICO:"
+    }
+  }
+}

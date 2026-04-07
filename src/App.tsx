@@ -6,6 +6,8 @@ import { Network } from '@capacitor/network';
 import { mockData, type EquipmentData } from './data/mockData';
 import { pdfIndex, type PdfSheet } from './data/pdfIndex';
 import { instrumentList } from './data/instrumentList';
+import pdfExtracted from './data/pdfExtracted.json';
+import PdfViewer from './components/PdfViewer';
 
 import { pageData, type TechnicalPageData } from './data/pageData';
 import { auth, db as firestore, handleFirestoreError, OperationType } from './lib/firebase';
@@ -70,8 +72,15 @@ export interface CommissioningForm {
 }
 
 function AppContent() {
-  const [user, setUser] = useState<User | null>(null);
-  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [user, setUser] = useState<User | null>({
+    uid: 'offline-user',
+    displayName: 'Usuário Local (Offline)',
+    email: 'local@comissionamento.com',
+    isAnonymous: true,
+    emailVerified: false,
+    providerData: []
+  } as any);
+  const [isAuthReady, setIsAuthReady] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [savedForms, setSavedForms] = useState<CommissioningForm[]>([]);
   const [currentForm, setCurrentForm] = useState<Partial<CommissioningForm>>({});
@@ -399,47 +408,7 @@ function AppContent() {
     );
   }
 
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full text-center"
-        >
-          <div className="w-20 h-20 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-900/20">
-            <Cloud className="w-12 h-12 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Comissionamento VC</h1>
-          <p className="text-slate-500 mb-8">Acesse sua conta para gerenciar as fichas de comissionamento e sincronizar dados.</p>
-          <button 
-            onClick={login}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg shadow-blue-900/20"
-          >
-            <LogIn className="w-6 h-6" /> Entrar com Google
-          </button>
-          <button 
-            onClick={() => setUser({
-              uid: 'offline-user',
-              displayName: 'Usuário Local (Offline)',
-              email: 'local@comissionamento.com',
-              isAnonymous: true,
-              emailVerified: false,
-              providerData: []
-            } as any)}
-            className="w-full mt-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-4 px-6 rounded-xl transition-all flex items-center justify-center gap-3 border border-slate-200"
-          >
-            Acessar Modo Local (Offline)
-          </button>
-          <div className="mt-8 pt-8 border-t border-slate-100">
-            <div className="flex items-center justify-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest">
-              <CheckCircle2 className="w-4 h-4 text-green-500" /> Suporte Offline Ativado
-            </div>
-          </div>
-        </motion.div>
-      </div>
-    );
-  }
+  // Login screen removed for offline-first local use
 
   const handleSearch = (e: ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
@@ -943,10 +912,32 @@ function AppContent() {
               <fieldset disabled={isReadOnly} className="p-6 space-y-8">
                 {/* Section 1: Technical Data */}
                 <section className="space-y-4">
-                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                    <span className="w-6 h-6 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center text-[10px]">01</span>
-                    Dados de Placa / Características
-                  </h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                      <span className="w-6 h-6 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center text-[10px]">01</span>
+                      Dados de Placa / Características
+                    </h3>
+                    {(() => {
+                      const pageMapping = pdfIndex.find(p => p.tag === currentForm.tag) || pdfExtracted.index.find(p => p.tag === currentForm.tag);
+                      if (pageMapping) {
+                        return (
+                          <button 
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setPdfPage(pageMapping.page);
+                              setIsPdfOpen(true);
+                            }}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-600 text-[10px] font-black rounded-lg hover:bg-blue-100 transition-all border border-blue-100 uppercase tracking-tighter shadow-sm"
+                          >
+                            <BookOpen className="w-3.5 h-3.5" />
+                            FECHAMENTO (FL. {pageMapping.page})
+                          </button>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
                     {currentForm.formType === 'motor' ? (
                       <>
@@ -1607,182 +1598,16 @@ function AppContent() {
         )}
       </AnimatePresence>
 
-      {/* PDF Viewer Modal */}
-      <AnimatePresence>
-        {isPdfOpen && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center p-0 sm:p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-slate-900/80 backdrop-blur-md"
-              onClick={() => setIsPdfOpen(false)}
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative bg-slate-100 w-full h-full sm:max-w-6xl sm:h-[90vh] sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col"
-            >
-              {/* PDF Header */}
-              <div className="bg-white border-b border-slate-200 p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="flex items-center gap-3 w-full sm:w-auto">
-                  <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center shrink-0">
-                    <BookOpen className="w-6 h-6" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-bold text-slate-800 leading-tight truncate">Projeto Detalhado</h3>
-                      <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[8px] font-black rounded uppercase tracking-tighter shrink-0">REV. 02</span>
-                    </div>
-                    <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider truncate">Diagrama de Interligação</p>
-                  </div>
-                </div>
-
-                <div className="flex-1 w-full max-w-md relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input 
-                    type="text"
-                    placeholder="Pesquisar TAG ou Descrição no projeto..."
-                    className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                    value={pdfSearchTerm}
-                    onChange={(e) => setPdfSearchTerm(e.target.value)}
-                  />
-                  {pdfSearchTerm && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-2xl z-[80] max-h-80 overflow-y-auto divide-y divide-slate-100">
-                      {(() => {
-                        const term = pdfSearchTerm.toLowerCase();
-                        
-                        // Combine data
-                        const results = [
-                          ...pdfIndex.map(p => ({ ...p, source: 'index' })),
-                          ...instrumentList
-                            .filter(ins => !pdfIndex.some(p => p.tag === ins.tag))
-                            .map(ins => ({ 
-                              tag: ins.tag, 
-                              page: -1, 
-                              description: `${ins.equipment} - ${ins.instrument}`, 
-                              source: 'csv' 
-                            }))
-                        ].filter(item => 
-                          item.tag.toLowerCase().includes(term) || 
-                          item.description.toLowerCase().includes(term)
-                        );
-
-                        if (results.length > 0) {
-                          return results.map(item => (
-                            <button
-                              key={`${item.tag}-${item.page}-${item.source}`}
-                              onClick={() => {
-                                if (item.page !== -1) {
-                                  setPdfPage(item.page);
-                                  setPdfSearchTerm('');
-                                }
-                              }}
-                              className={`w-full text-left p-3 transition-colors flex items-center justify-between group ${item.page === -1 ? 'opacity-50 cursor-not-allowed bg-slate-50' : 'hover:bg-blue-50 cursor-pointer'}`}
-                            >
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <div className="text-xs font-bold text-slate-700 group-hover:text-blue-600 truncate">{item.tag}</div>
-                                  {item.source === 'csv' && (
-                                    <span className="text-[7px] px-1 bg-amber-100 text-amber-700 rounded font-black uppercase">Não Mapeado</span>
-                                  )}
-                                </div>
-                                <div className="text-[10px] text-slate-400 truncate">{item.description}</div>
-                              </div>
-                              <div className="text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded shrink-0 ml-2">
-                                {item.page !== -1 ? `FL. ${String(item.page).padStart(3, '0')}` : '--'}
-                              </div>
-                            </button>
-                          ));
-                        }
-                        return <div className="p-4 text-center text-xs text-slate-400">Nenhum resultado encontrado</div>;
-                      })()}
-                    </div>
-                  )}
-
-                </div>
-
-                <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-                  <button 
-                    onClick={() => window.print()}
-                    className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-400 hover:text-slate-600 hidden sm:block"
-                    title="Imprimir Folha"
-                  >
-                    <Download className="w-5 h-5" />
-                  </button>
-                  <div className="flex items-center bg-slate-100 rounded-lg p-1">
-                    <button 
-                      onClick={() => setPdfPage(prev => Math.max(1, prev - 1))}
-                      className="p-1.5 hover:bg-white hover:shadow-sm rounded-md transition-all text-slate-600 disabled:opacity-30"
-                      disabled={pdfPage <= 1}
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                    </button>
-                    <div className="px-3 text-xs font-bold text-slate-600 min-w-[80px] text-center">
-                      FL. {String(pdfPage).padStart(3, '0')}
-                    </div>
-                    <button 
-                      onClick={() => setPdfPage(prev => Math.min(352, prev + 1))}
-                      className="p-1.5 hover:bg-white hover:shadow-sm rounded-md transition-all text-slate-600 disabled:opacity-30"
-                      disabled={pdfPage >= 352}
-                    >
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <button 
-                    onClick={() => setIsPdfOpen(false)}
-                    className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-400 hover:text-slate-600"
-                  >
-                    <X className="w-6 h-6" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex-1 bg-slate-200 overflow-hidden relative">
-                <iframe 
-                  key={pdfPage}
-                  src={`/arquivos/ED-E-Z2000-409-02.pdf#page=${pdfPage}&view=FitH`}
-                  className="w-full h-full border-none shadow-inner"
-                  title="Projeto Detalhado"
-                />
-                
-                {/* Floating Info Overlay */}
-                <div className="absolute bottom-6 left-6 pointer-events-none">
-                  <div className="bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-white/20 shadow-2xl flex items-center gap-4">
-                    <div className="w-12 h-12 bg-blue-600 text-white rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/20">
-                      <FileText className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Página Atual</div>
-                      <div className="text-lg font-black text-slate-800 leading-none">
-                        {pdfIndex.find(p => p.page === pdfPage)?.tag || `FOLHA ${pdfPage}`}
-                      </div>
-                      <div className="text-[10px] font-bold text-blue-600 truncate max-w-[200px]">
-                        {pdfIndex.find(p => p.page === pdfPage)?.description || 'Visualização do Projeto Técnico'}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-
-              {/* PDF Footer / Quick Nav */}
-              <div className="bg-white border-t border-slate-200 p-2 flex items-center justify-center gap-1 overflow-x-auto no-scrollbar">
-                {[1, 2, 3, 14, 15, 65, 70, 76, 79, 80, 81, 104, 121, 125, 129, 140, 182, 210, 257, 348].map(p => (
-                  <button
-                    key={p}
-                    onClick={() => setPdfPage(p)}
-                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all whitespace-nowrap ${pdfPage === p ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
-                  >
-                    FL. {String(p).padStart(3, '0')}
-                  </button>
-                ))}
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* PDF Viewer Component */}
+      {isPdfOpen && (
+        <PdfViewer 
+          pdfUrl="/arquivos/ED-E-Z2000-409-02.pdf"
+          pageNumber={pdfPage}
+          onClose={() => setIsPdfOpen(false)}
+          equipmentTag={pdfIndex.find(p => p.page === pdfPage)?.tag || pdfExtracted.index.find(p => p.page === pdfPage)?.tag}
+          equipmentDescription={pdfIndex.find(p => p.page === pdfPage)?.description || pdfExtracted.index.find(p => p.page === pdfPage)?.description}
+        />
+      )}
     </div>
   );
 }

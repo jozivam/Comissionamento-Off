@@ -27,3 +27,84 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* PDF Viewer Styles */
+.pdf-viewer-overlay {
+  @apply fixed inset-0 z-[70] flex items-center justify-center p-0 sm:p-4 bg-slate-900/80 backdrop-blur-md;
+}
+
+.pdf-viewer-modal {
+  @apply relative bg-slate-100 w-full h-full sm:max-w-6xl sm:h-[90vh] sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col;
+}
+
+.pdf-viewer-header {
+  @apply bg-white border-b border-slate-200 p-4 flex items-center justify-between shrink-0;
+}
+
+.pdf-viewer-header-info {
+  @apply flex items-center gap-3 min-w-0;
+}
+
+.pdf-tag-badge {
+  @apply px-2 py-1 bg-blue-600 text-white text-xs font-bold rounded-lg shadow-sm shrink-0;
+}
+
+.pdf-viewer-title {
+  @apply text-sm text-slate-800 leading-tight truncate;
+}
+
+.pdf-viewer-subtitle {
+  @apply text-slate-400 font-normal;
+}
+
+.pdf-close-btn {
+  @apply p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-400 hover:text-slate-600 font-bold;
+}
+
+.pdf-viewer-toolbar {
+  @apply bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between gap-4 shrink-0 overflow-x-auto;
+}
+
+.pdf-toolbar-nav {
+  @apply flex items-center gap-3 shrink-0;
+}
+
+.pdf-nav-btn {
+  @apply px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-lg transition-all disabled:opacity-30;
+}
+
+.pdf-page-info {
+  @apply text-xs font-medium text-slate-500 whitespace-nowrap;
+}
+
+.pdf-toolbar-zoom {
+  @apply flex items-center gap-1 shrink-0;
+}
+
+.pdf-zoom-btn {
+  @apply w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-all;
+}
+
+.pdf-zoom-label {
+  @apply text-[10px] font-bold text-slate-400 w-10 text-center;
+}
+
+.pdf-canvas-area {
+  @apply flex-1 overflow-auto bg-slate-200 flex justify-center p-4 relative;
+}
+
+.pdf-canvas {
+  @apply shadow-2xl bg-white max-w-full;
+}
+
+.pdf-loading-overlay {
+  @apply absolute inset-0 flex flex-col items-center justify-center bg-slate-100/50 backdrop-blur-sm z-10 gap-3 text-blue-600 font-medium;
+}
+
+.pdf-spinner {
+  @apply w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin;
+}
+
+.pdf-error-msg {
+  @apply p-8 text-center text-red-500 font-bold;
+}
