@@ -5,6 +5,9 @@ on:
     branches: [ main, master, production ]
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -48,7 +51,7 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon
+          ./gradlew clean assembleRelease --stacktrace --no-daemon
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
