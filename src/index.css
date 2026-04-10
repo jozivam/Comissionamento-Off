@@ -96,3 +96,20 @@
 .nav-item-active {
   @apply relative text-blue-600 after:absolute after:-bottom-2 after:left-1/2 after:-translate-x-1/2 after:w-1 after:h-1 after:bg-blue-600 after:rounded-full;
 }
+
+/* Ficha View Static Mode */
+.ficha-mode input, .ficha-mode select:not(.bg-transparent), .ficha-mode textarea {
+  border-color: transparent !important;
+  background-color: #f8fafc !important; 
+  color: #0f172a !important;
+  font-weight: 700 !important;
+  appearance: none;
+  pointer-events: none;
+}
+.ficha-mode input[type="text"]::placeholder {
+  color: #94a3b8;
+  font-weight: 400;
+}
+.ficha-mode input[type="checkbox"] {
+  border-radius: 4px;
+}

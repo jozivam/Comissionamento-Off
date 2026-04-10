@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, type ChangeEvent } from 'react';
-import { Search, Plus, FileText, Save, Download, Trash2, ChevronLeft, ChevronRight, CheckCircle2, Eye, Edit, Camera, Image, X, LogIn, LogOut, Cloud, CloudOff, RefreshCw, BookOpen, Clock, LayoutGrid, Database, Menu, Settings, Activity, HardDrive } from 'lucide-react';
+import { Search, Plus, FileText, Save, Download, Trash2, ChevronLeft, ChevronRight, ChevronDown, CheckCircle2, Eye, Edit, Camera, Image, X, LogIn, LogOut, Cloud, CloudOff, RefreshCw, BookOpen, Clock, LayoutGrid, Database, Menu, Settings, Activity, HardDrive } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useRef } from 'react';
 import { Network } from '@capacitor/network';
@@ -10,122 +10,31 @@ import pdfExtracted from './data/pdfExtracted.json';
 import PdfViewer from './components/PdfViewer';
 
 import { pageData, type TechnicalPageData } from './data/pageData';
-import { db as firestore, handleFirestoreError, OperationType } from './lib/firebase';
-import { 
-  collection, 
-  query, 
-  onSnapshot, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  doc, 
-  setDoc, 
-  getDocs, 
-  where,
-  orderBy,
-  serverTimestamp,
-  Timestamp
-} from 'firebase/firestore';
-import { type User } from 'firebase/auth';
+import { localDb, type FormRecord as CommissioningForm } from './lib/db';
+import { syncFormsWithSupabase, setupRealtimeSync } from './lib/sync';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import ErrorBoundary from './components/ErrorBoundary';
 
-const LOCAL_FORMS_STORAGE_KEY = 'commissioning.forms.v1';
 const OFFLINE_USER_ID = 'offline-user';
 
-export interface CommissioningForm {
-  id?: string;
-  formType: 'motor' | 'instrument';
-  tag: string;
-  description: string;
-  manufacturer: string;
-  model: string;
-  serialNumber: string;
-  date: string;
-  ipAddress?: string;
-  ccm?: string;
-  gaveta?: string;
-  range?: string;
-  power?: string;
-  current?: string;
-  rpm?: string;
-  voltage?: string;
-  insulationClass?: string;
-  protectionDegree?: string;
-  motorConnection?: string;
-  serviceFactor?: string;
-  frequency?: string;
-  powerFactor?: string;
-  hiPotVoltage?: string;
-  ambientTemp?: string;
-  location?: string;
-  instrumentType?: string;
-  supplyVoltage?: string;
-  inputSignal?: string;
-  outputSignal?: string;
-  opValue?: string;
-  photos?: string[];
-  results: any;
-  status: 'draft' | 'completed';
-  userId: string;
-  userEmail: string;
-  createdAt: any;
-  updatedAt: any;
-}
-
-const createLocalFormId = () => `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-
-const isFirestoreTimestamp = (value: unknown): value is Timestamp =>
-  value instanceof Timestamp || (
-    !!value &&
-    typeof value === 'object' &&
-    'toDate' in value &&
-    typeof (value as { toDate?: unknown }).toDate === 'function'
-  );
+const createLocalFormId = () => crypto.randomUUID ? crypto.randomUUID() : `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
 const formatSavedDate = (value: unknown) => {
-  if (isFirestoreTimestamp(value)) {
-    return value.toDate().toLocaleDateString();
-  }
-
   if (typeof value === 'string' || typeof value === 'number' || value instanceof Date) {
     const date = new Date(value);
     if (!Number.isNaN(date.getTime())) {
       return date.toLocaleDateString();
     }
   }
-
   return 'Recém salvo';
-};
-
-const sortFormsByUpdatedAt = (forms: CommissioningForm[]) =>
-  [...forms].sort((a, b) => {
-    const getTime = (value: unknown) => {
-      if (isFirestoreTimestamp(value)) return value.toDate().getTime();
-      const date = new Date(value as string | number | Date);
-      return Number.isNaN(date.getTime()) ? 0 : date.getTime();
-    };
-
-    return getTime(b.updatedAt) - getTime(a.updatedAt);
-  });
-
-const readLocalForms = (): CommissioningForm[] => {
-  try {
-    const stored = localStorage.getItem(LOCAL_FORMS_STORAGE_KEY);
-    return stored ? sortFormsByUpdatedAt(JSON.parse(stored) as CommissioningForm[]) : [];
-  } catch (error) {
-    console.error('Erro ao carregar fichas locais:', error);
-    return [];
-  }
-};
-
-const writeLocalForms = (forms: CommissioningForm[]) => {
-  localStorage.setItem(LOCAL_FORMS_STORAGE_KEY, JSON.stringify(sortFormsByUpdatedAt(forms)));
 };
 
 const isOfflineUser = (user: { uid?: string; isAnonymous?: boolean } | null | undefined) =>
   !user || user.uid === OFFLINE_USER_ID || user.isAnonymous;
+
+export type { CommissioningForm };
 
 function AppContent() {
   const [user, setUser] = useState<any>({
@@ -138,8 +47,37 @@ function AppContent() {
   });
   const [isAuthReady, setIsAuthReady] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [savedForms, setSavedForms] = useState<CommissioningForm[]>([]);
-  const [currentForm, setCurrentForm] = useState<Partial<CommissioningForm>>({});
+  const liveForms = useLiveQuery(() => localDb.forms.toArray()) || [];
+  const savedForms = useMemo(() => {
+    return [...liveForms].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  }, [liveForms]);
+
+  const [parentForm, setParentForm] = useState<Partial<CommissioningForm>>({});
+  const [activeInstrumentTag, setActiveInstrumentTag] = useState<string | null>(null);
+
+  const currentForm = useMemo(() => {
+    if (activeInstrumentTag) {
+      return (parentForm.instruments || {})[activeInstrumentTag] || { tag: activeInstrumentTag, formType: 'instrument', description: 'Instrumento Mapeado' };
+    }
+    return parentForm;
+  }, [parentForm, activeInstrumentTag]);
+
+  const setCurrentForm = (updated: any) => {
+    if (activeInstrumentTag) {
+      setParentForm(prev => {
+        const newData = typeof updated === 'function' ? updated((prev.instruments || {})[activeInstrumentTag] || {}) : updated;
+        return {
+          ...prev,
+          instruments: {
+            ...prev.instruments,
+            [activeInstrumentTag]: newData
+          }
+        };
+      });
+    } else {
+      setParentForm(prev => typeof updated === 'function' ? updated(prev) : updated);
+    }
+  };
   const [view, setView] = useState<'dashboard' | 'form'>('dashboard');
   const [savedSearchTerm, setSavedSearchTerm] = useState('');
   const [isReadOnly, setIsReadOnly] = useState(false);
@@ -152,58 +90,49 @@ function AppContent() {
   const [isPdfOpen, setIsPdfOpen] = useState(false);
   const [pdfPage, setPdfPage] = useState(1);
   const [pdfSearchTerm, setPdfSearchTerm] = useState('');
-  const [pdfOffset, setPdfOffset] = useState(0); // Offset global para calibração manual
-
+  const [pdfOffset, setPdfOffset] = useState(6); // Default 6: calibração para projeto ED-E-Z2000-409
 
   useEffect(() => {
-    // Mode Offline: Firebase Auth listener removed to prevent null user state
     setIsAuthReady(true);
-    setSavedForms(readLocalForms());
 
     let networkListenerHandle: any;
+
+    const doSync = async () => {
+      setIsSyncing(true);
+      try {
+        await syncFormsWithSupabase();
+      } finally {
+        setIsSyncing(false);
+      }
+    };
 
     const initNetwork = async () => {
       const status = await Network.getStatus();
       setIsOnline(status.connected);
+      if (status.connected) {
+        doSync();
+      }
       networkListenerHandle = await Network.addListener('networkStatusChange', status => {
         setIsOnline(status.connected);
+        if (status.connected) {
+          doSync();
+        }
       });
     };
     initNetwork();
+
+    // Iniciar realtime Supabase sync se possível
+    const cleanupRealtime = setupRealtimeSync(() => {
+      // O Dexie live query atualiza a tela sozinho quando o BD local é modificado
+    });
 
     return () => {
       if (networkListenerHandle) {
         networkListenerHandle.remove();
       }
+      cleanupRealtime();
     };
   }, []);
-
-  useEffect(() => {
-    if (!user) return;
-
-    if (isOfflineUser(user)) {
-      setSavedForms(readLocalForms());
-      return;
-    }
-
-    const q = query(
-      collection(firestore, 'forms'),
-      where('userId', '==', user.uid),
-      orderBy('updatedAt', 'desc')
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const forms = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as CommissioningForm[];
-      setSavedForms(forms);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'forms');
-    });
-
-    return () => unsubscribe();
-  }, [user]);
 
   const getMainTag = (tag: string) => {
     const motor = mockData.find(m => m.type === 'motor' && tag.startsWith(m.tag));
@@ -215,10 +144,7 @@ function AppContent() {
   const relatedEquipments = useMemo(() => {
     if (!groupTag) return [];
     
-    // Get from mock data
     const fromMock = mockData.filter(item => item.tag.startsWith(groupTag));
-    
-    // Get from saved forms (those not in mock data)
     const fromSaved = savedForms
       .filter(f => f.tag.startsWith(groupTag) && !fromMock.some(m => m.tag === f.tag))
       .map(f => ({ 
@@ -231,33 +157,84 @@ function AppContent() {
   }, [groupTag, savedForms]);
 
   const switchTag = (tag: string) => {
-    // Check if there's a saved form for this tag
-    const savedForm = savedForms.find(f => f.tag === tag);
-    if (savedForm) {
-      setCurrentForm(savedForm);
-      setIsReadOnly(true);
-    } else {
-      // Find mock data
-      const mock = mockData.find(m => m.tag === tag);
-      if (mock) {
-        startNewForm(mock);
-      }
+    let type = 'motor';
+    let equipmentTag = tag;
+    let isInstrument = false;
+
+    const fromMock = mockData.find(m => m.tag === tag);
+    const fromInst = instrumentList.find(i => i.tag === tag);
+    
+    if (fromInst) {
+      isInstrument = true;
+      equipmentTag = getMainTag(tag);
+      type = 'instrument';
+    } else if (fromMock) {
+      type = fromMock.type;
+    } else if (tag.match(/[A-Z]+\d+$/)) { // Heurística pra TAG de instrumento
+       isInstrument = true;
+       equipmentTag = getMainTag(tag);
+       type = 'instrument';
     }
+
+    const savedForm = savedForms.find(f => f.tag === equipmentTag);
+    if (savedForm) {
+      setParentForm(savedForm);
+    } else {
+      const mock = mockData.find(m => m.tag === equipmentTag) || { tag: equipmentTag, type: 'motor', description: 'Equipamento' };
+      setParentForm({
+        formType: mock.type === 'motor' ? 'motor' : 'instrument',
+        tag: mock.tag,
+        description: mock.description,
+        manufacturer: mock.manufacturer || '',
+        model: mock.model || '',
+        ipAddress: mock.ipAddress || '',
+        ccm: mock.ccm || '',
+        gaveta: mock.gaveta || '',
+        date: new Date().toISOString().split('T')[0],
+        status: 'draft',
+        instruments: {},
+        results: { checklist: {}, measurements: {} }
+      });
+    }
+
+    if (isInstrument) {
+      setActiveInstrumentTag(tag);
+      setParentForm(prev => {
+        // Garantir que a ficha interna de instrumento exista com fallback
+        const existing = (prev.instruments || {})[tag];
+        if (existing) return prev;
+        
+        return {
+          ...prev,
+          instruments: {
+            ...prev.instruments,
+            [tag]: {
+              tag: tag,
+              formType: 'instrument',
+              description: fromInst ? fromInst.instrument : 'Instrumento', 
+              instrumentType: fromInst ? fromInst.instrument : 'Instrumento',
+              results: { checklist: {}, measurements: {} }
+            }
+          }
+        };
+      });
+    } else {
+      setActiveInstrumentTag(null);
+    }
+    
+    setIsReadOnly(true);
+    setView('form');
+    setSearchTerm('');
   };
 
-
-  // Login/Logout removed for offline mode
-
   const syncEquipment = async () => {
-    if (!user) return;
     setIsSyncing(true);
     try {
-      for (const item of mockData) {
-        await setDoc(doc(firestore, 'equipment', item.tag), item);
-      }
-      alert('Base de dados sincronizada com sucesso!');
+      await syncFormsWithSupabase();
+      alert('Sincronização manual concluída com sucesso!');
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, 'equipment');
+      console.error('Sync error:', error);
+      alert('Erro na sincronização!');
     } finally {
       setIsSyncing(false);
     }
@@ -267,198 +244,190 @@ function AppContent() {
     if (!currentForm.tag || !user) return;
 
     const now = new Date().toISOString();
-    const formToSave = {
-      ...currentForm,
+    const existingId = currentForm.id || savedForms.find(form => form.tag === currentForm.tag)?.id || createLocalFormId();
+
+    const formToSave: CommissioningForm = {
+      ...(currentForm as CommissioningForm),
+      id: existingId,
       userId: user.uid,
       userEmail: user.email || '',
-      updatedAt: isOfflineUser(user) ? now : serverTimestamp(),
-      status: 'draft' as const
+      updatedAt: now,
+      createdAt: currentForm.createdAt || now,
+      status: 'draft',
+      syncStatus: 'pending'
     };
 
-    if (!currentForm.createdAt) {
-      formToSave.createdAt = isOfflineUser(user) ? now : serverTimestamp();
-    }
-
     try {
-      if (isOfflineUser(user)) {
-        const existingId = currentForm.id || savedForms.find(form => form.tag === currentForm.tag)?.id || createLocalFormId();
-        const localForm = { ...formToSave, id: existingId } as CommissioningForm;
-        const nextForms = sortFormsByUpdatedAt([
-          localForm,
-          ...savedForms.filter(form => form.id !== existingId && form.tag !== currentForm.tag),
-        ]);
-
-        writeLocalForms(nextForms);
-        setSavedForms(nextForms);
-        setCurrentForm(localForm);
-        setView('dashboard');
-        return;
+      await localDb.forms.put(formToSave);
+      
+      // Tentar syncrtizar se tiver net
+      if (isOnline) {
+        setIsSyncing(true);
+        try {
+          await syncFormsWithSupabase();
+        } finally {
+          setIsSyncing(false);
+        }
       }
 
-      if (currentForm.id) {
-        await updateDoc(doc(firestore, 'forms', currentForm.id), formToSave);
-      } else {
-        await addDoc(collection(firestore, 'forms'), formToSave);
-      }
+      setCurrentForm(formToSave);
       setView('dashboard');
+
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, 'forms');
+      console.error('Erro ao salvar no IndexedDB:', error);
+      alert('Erro ao salvar ficha');
     }
   };
 
   const deleteForm = async (id: string) => {
     try {
-      if (isOfflineUser(user)) {
-        const nextForms = savedForms.filter(form => form.id !== id);
-        writeLocalForms(nextForms);
-        setSavedForms(nextForms);
-        setFormToDelete(null);
-        if (currentForm.id === id) {
-          setView('dashboard');
-          setCurrentForm({});
-        }
-        return;
-      }
-
-      await deleteDoc(doc(firestore, 'forms', id));
+      await localDb.forms.delete(id);
       setFormToDelete(null);
+      
+      // Tentar refletir a exclusão no backend se tiver rede 
+      // (Para deleção real precisamos registrar um status 'deleted' ou deletar via Supabase. 
+      // Para o escopo offline-first básico, deletamos localmente)
+      
       if (currentForm.id === id) {
         setView('dashboard');
         setCurrentForm({});
       }
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `forms/${id}`);
+       console.error('Erro ao deletar localmente:', error);
     }
   };
 
-  const exportPDF = (form: CommissioningForm) => {
+  const exportPDF = (formsToExport: CommissioningForm[]) => {
     try {
       const doc = new jsPDF();
       
-      // Header
-      doc.setFontSize(18);
-      doc.setTextColor(40, 40, 40);
-      doc.text('Votorantim Cimentos', 20, 20);
-      
-      doc.setFontSize(10);
-      doc.setTextColor(100, 100, 100);
-      doc.text('Fábrica de Edealina - Moagem Z2', 20, 26);
-      
-      doc.setFontSize(14);
-      doc.setTextColor(0, 82, 155); // Blue color
-      doc.text(form.formType === 'motor' ? 'Ficha de Liberação de Montagem e Testes (Motor)' : 'Ficha de Comissionamento de Instrumento', 20, 36);
-      
-      doc.setDrawColor(200, 200, 200);
-      doc.line(20, 40, 190, 40);
-      
-      // Equipment Data
-      doc.setFontSize(10);
-      doc.setTextColor(40, 40, 40);
-      doc.setFont('helvetica', 'bold');
-      doc.text('DADOS DO EQUIPAMENTO', 20, 50);
-      doc.setFont('helvetica', 'normal');
-      
-      doc.text(`TAG: ${form.tag || '-'}`, 20, 58);
-      doc.text(`Descrição: ${form.description || '-'}`, 20, 65);
-      doc.text(`Data: ${form.date || '-'}`, 140, 58);
-      doc.text(`Status: ${form.status || '-'}`, 140, 65);
-      
-      doc.line(20, 72, 190, 72);
-      
-      doc.setFont('helvetica', 'bold');
-      doc.text('1. DADOS TÉCNICOS', 20, 82);
-      doc.setFont('helvetica', 'normal');
-      
-      doc.text(`Fabricante: ${form.manufacturer || '-'}`, 20, 90);
-      doc.text(`Modelo: ${form.model || '-'}`, 100, 90);
-      doc.text(`Nº de série: ${form.serialNumber || '-'}`, 20, 97);
-      
-      let currentY = 105;
-
-      if (form.formType === 'motor') {
-        doc.text(`Potência: ${form.power || '-'}`, 20, currentY);
-        doc.text(`Corrente: ${form.current || '-'}`, 70, currentY);
-        doc.text(`RPM: ${form.rpm || '-'}`, 120, currentY);
-        doc.text(`Tensão: ${form.voltage || '-'}`, 160, currentY);
-        currentY += 7;
-
-        doc.text(`Classe Isolação: ${form.insulationClass || '-'}`, 20, currentY);
-        doc.text(`Grau Proteção: ${form.protectionDegree || '-'}`, 100, currentY);
-        currentY += 7;
+      formsToExport.forEach((form, formIndex) => {
+        if (formIndex > 0) doc.addPage();
         
-        doc.text(`Fechamento: ${form.motorConnection || '-'}`, 20, currentY);
-        doc.text(`F.S.: ${form.serviceFactor || '-'}`, 70, currentY);
-        doc.text(`Frequência: ${form.frequency || '-'} Hz`, 120, currentY);
-        doc.text(`cos phi: ${form.powerFactor || '-'}`, 160, currentY);
-        currentY += 7;
-
-        doc.text(`Endereço IP: ${form.ipAddress || '-'}`, 20, currentY);
-        doc.text(`CCM: ${form.ccm || '-'}`, 100, currentY);
-        doc.text(`Gaveta: ${form.gaveta || '-'}`, 140, currentY);
-        currentY += 7;
-
-        doc.text(`Tensão Hi-pot: ${form.hiPotVoltage || '-'}`, 20, currentY);
-        doc.text(`Temp. Ambiente: ${form.ambientTemp || '-'}`, 100, currentY);
+        // Header
+        doc.setFontSize(18);
+        doc.setTextColor(40, 40, 40);
+        doc.text('Votorantim Cimentos', 20, 20);
         
-        const r = parseFloat(form.results?.measurements?.['Fase R'] || '0');
-        const s = parseFloat(form.results?.measurements?.['Fase S'] || '0');
-        const t = parseFloat(form.results?.measurements?.['Fase T'] || '0');
-        const avg = (r + s + t) / 3;
-        doc.text(`Res. Isol. RST/Massa: ${avg > 0 ? avg.toFixed(2) : '-'} MΩ`, 140, currentY);
-      } else {
-        doc.text(`Localização: ${form.location || '-'}`, 20, currentY);
-        doc.text(`Tipo de Instrumento: ${form.instrumentType || '-'}`, 100, currentY);
-        currentY += 7;
+        doc.setFontSize(10);
+        doc.setTextColor(100, 100, 100);
+        doc.text('Fábrica de Edealina - Moagem Z2', 20, 26);
+        
+        doc.setFontSize(14);
+        doc.setTextColor(0, 82, 155); // Blue color
+        doc.text(form.formType === 'motor' ? 'Ficha de Liberação de Montagem e Testes (Motor)' : 'Ficha de Comissionamento de Instrumento', 20, 36);
+        
+        doc.setDrawColor(200, 200, 200);
+        doc.line(20, 40, 190, 40);
+        
+        // Equipment Data
+        doc.setFontSize(10);
+        doc.setTextColor(40, 40, 40);
+        doc.setFont('helvetica', 'bold');
+        doc.text('DADOS DO EQUIPAMENTO', 20, 50);
+        doc.setFont('helvetica', 'normal');
+        
+        doc.text(`TAG: ${form.tag || '-'}`, 20, 58);
+        doc.text(`Descrição: ${form.description || '-'}`, 20, 65);
+        doc.text(`Data: ${form.date || '-'}`, 140, 58);
+        doc.text(`Status: ${form.status || '-'}`, 140, 65);
+        
+        doc.line(20, 72, 190, 72);
+        
+        doc.setFont('helvetica', 'bold');
+        doc.text('1. DADOS TÉCNICOS', 20, 82);
+        doc.setFont('helvetica', 'normal');
+        
+        doc.text(`Fabricante: ${form.manufacturer || '-'}`, 20, 90);
+        doc.text(`Modelo: ${form.model || '-'}`, 100, 90);
+        doc.text(`Nº de série: ${form.serialNumber || '-'}`, 20, 97);
+        let currentY = 105;
 
-        doc.text(`Tensão Alimentação: ${form.supplyVoltage || '-'}`, 20, currentY);
-        doc.text(`Sinal de Entrada: ${form.inputSignal || '-'}`, 100, currentY);
-        currentY += 7;
+        if (form.formType === 'motor') {
+          doc.text(`Potência: ${form.power || '-'}`, 20, currentY);
+          doc.text(`Corrente: ${form.current || '-'}`, 70, currentY);
+          doc.text(`RPM: ${form.rpm || '-'}`, 120, currentY);
+          doc.text(`Tensão: ${form.voltage || '-'}`, 160, currentY);
+          currentY += 7;
 
-        doc.text(`Sinal de Saída: ${form.outputSignal || '-'}`, 20, currentY);
-        doc.text(`Range/Escala: ${form.range || '-'}`, 100, currentY);
-        currentY += 7;
-
-        doc.text(`Valor de Operação: ${form.opValue || '-'}`, 20, currentY);
-      }
-
-      currentY += 15;
-      doc.line(20, currentY - 5, 190, currentY - 5);
-      doc.setFont('helvetica', 'bold');
-      doc.text('2. CHECKLIST E RESULTADOS', 20, currentY);
-      doc.setFont('helvetica', 'normal');
-      
-      const checklistItems = Object.entries(form.results?.checklist || {});
-      if (checklistItems.length > 0) {
-        (doc as any).autoTable({
-          startY: currentY + 5,
-          head: [['Item de Verificação', 'Status']],
-          body: checklistItems.map(([item, checked]) => [item, checked ? 'CONFORME' : 'NÃO CONFORME / PENDENTE']),
-          margin: { left: 20, right: 20 },
-          theme: 'grid',
-          headStyles: { fillColor: [0, 82, 155], textColor: 255 },
-          styles: { fontSize: 9 }
-        });
-      }
-
-      if (form.photos && form.photos.length > 0) {
-        form.photos.forEach((photo, index) => {
-          doc.addPage();
-          doc.setFontSize(14);
-          doc.setTextColor(0, 82, 155);
-          doc.setFont('helvetica', 'bold');
-          doc.text(`3.${index + 1} FOTO DO EQUIPAMENTO`, 20, 20);
-          doc.setFont('helvetica', 'normal');
+          doc.text(`Classe Isolação: ${form.insulationClass || '-'}`, 20, currentY);
+          doc.text(`Grau Proteção: ${form.protectionDegree || '-'}`, 100, currentY);
+          currentY += 7;
           
-          try {
-            doc.addImage(photo, 'JPEG', 20, 30, 170, 120, undefined, 'FAST');
-          } catch (e) {
-            console.error('Error adding image to PDF:', e);
-            doc.setFontSize(10);
-            doc.setTextColor(255, 0, 0);
-            doc.text('Erro ao carregar a imagem no PDF.', 20, 30);
-          }
-        });
-      }
+          doc.text(`Fechamento: ${form.motorConnection || '-'}`, 20, currentY);
+          doc.text(`F.S.: ${form.serviceFactor || '-'}`, 70, currentY);
+          doc.text(`Frequência: ${form.frequency || '-'} Hz`, 120, currentY);
+          doc.text(`cos phi: ${form.powerFactor || '-'}`, 160, currentY);
+          currentY += 7;
+
+          doc.text(`Endereço IP: ${form.ipAddress || '-'}`, 20, currentY);
+          doc.text(`CCM: ${form.ccm || '-'}`, 100, currentY);
+          doc.text(`Gaveta: ${form.gaveta || '-'}`, 140, currentY);
+          currentY += 7;
+
+          doc.text(`Tensão Hi-pot: ${form.hiPotVoltage || '-'}`, 20, currentY);
+          doc.text(`Temp. Ambiente: ${form.ambientTemp || '-'}`, 100, currentY);
+          
+          const r = parseFloat(form.results?.measurements?.['Fase R'] || '0');
+          const s = parseFloat(form.results?.measurements?.['Fase S'] || '0');
+          const t = parseFloat(form.results?.measurements?.['Fase T'] || '0');
+          const avg = (r + s + t) / 3;
+          doc.text(`Res. Isol. RST/Massa: ${avg > 0 ? avg.toFixed(2) : '-'} MΩ`, 140, currentY);
+        } else {
+          doc.text(`Localização: ${form.location || '-'}`, 20, currentY);
+          doc.text(`Tipo de Instrumento: ${form.instrumentType || '-'}`, 100, currentY);
+          currentY += 7;
+
+          doc.text(`Tensão Alimentação: ${form.supplyVoltage || '-'}`, 20, currentY);
+          doc.text(`Sinal de Entrada: ${form.inputSignal || '-'}`, 100, currentY);
+          currentY += 7;
+
+          doc.text(`Sinal de Saída: ${form.outputSignal || '-'}`, 20, currentY);
+          doc.text(`Range/Escala: ${form.range || '-'}`, 100, currentY);
+          currentY += 7;
+
+          doc.text(`Valor de Operação: ${form.opValue || '-'}`, 20, currentY);
+        }
+
+        currentY += 15;
+        doc.line(20, currentY - 5, 190, currentY - 5);
+        doc.setFont('helvetica', 'bold');
+        doc.text('2. CHECKLIST E RESULTADOS', 20, currentY);
+        doc.setFont('helvetica', 'normal');
+        
+        const checklistItems = Object.entries(form.results?.checklist || {});
+        if (checklistItems.length > 0) {
+          (doc as any).autoTable({
+            startY: currentY + 5,
+            head: [['Item de Verificação', 'Status']],
+            body: checklistItems.map(([item, checked]) => [item, checked ? 'CONFORME' : 'NÃO CONFORME / PENDENTE']),
+            margin: { left: 20, right: 20 },
+            theme: 'grid',
+            headStyles: { fillColor: [0, 82, 155], textColor: 255 },
+            styles: { fontSize: 9 }
+          });
+        }
+
+        if (form.photos && form.photos.length > 0) {
+          form.photos.forEach((photo, index) => {
+            doc.addPage();
+            doc.setFontSize(14);
+            doc.setTextColor(0, 82, 155);
+            doc.setFont('helvetica', 'bold');
+            doc.text(`3.${index + 1} FOTO DO EQUIPAMENTO`, 20, 20);
+            doc.setFont('helvetica', 'normal');
+            
+            try {
+              doc.addImage(photo, 'JPEG', 20, 30, 170, 120, undefined, 'FAST');
+            } catch (e) {
+              console.error('Error adding image to PDF:', e);
+              doc.setFontSize(10);
+              doc.setTextColor(255, 0, 0);
+              doc.text('Erro ao carregar a imagem no PDF.', 20, 30);
+            }
+          });
+        }
+      });
 
       // Footer
       const pageCount = (doc as any).internal.getNumberOfPages();
@@ -469,7 +438,8 @@ function AppContent() {
         doc.text(`Gerado em ${new Date().toLocaleString()} - Página ${i} de ${pageCount}`, 20, 285);
       }
 
-      doc.save(`Ficha_${form.tag || 'SemTag'}_${form.date || 'SemData'}.pdf`);
+      const mainForm = formsToExport[0];
+      doc.save(`Ficha_${mainForm.tag || 'SemTag'}_Multimalhas.pdf`);
     } catch (error) {
       console.error('Erro ao exportar PDF:', error);
       alert('Erro ao gerar o PDF. Verifique se os dados estão corretos.');
@@ -493,51 +463,26 @@ function AppContent() {
     setSearchTerm(e.target.value);
   };
 
-  const filteredData = mockData.filter(item => 
-    item.tag.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.description.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const startNewForm = (equipment: EquipmentData) => {
-    const newForm: Partial<CommissioningForm> = {
-      formType: equipment.type === 'motor' ? 'motor' : 'instrument',
-      tag: equipment.tag,
-      description: equipment.description,
-      manufacturer: equipment.manufacturer || '',
-      model: equipment.model || '',
-      ipAddress: equipment.ipAddress || '',
-      ccm: equipment.ccm || '',
-      gaveta: equipment.gaveta || '',
-      power: equipment.power || '',
-      current: equipment.current || '',
-      rpm: equipment.rpm || '',
-      voltage: equipment.voltage || '',
-      frequency: equipment.frequency || '',
-      powerFactor: equipment.powerFactor || '',
-      serviceFactor: equipment.serviceFactor || '',
-      motorConnection: equipment.motorConnection || '',
-      protectionDegree: equipment.protectionDegree || '',
-      range: equipment.range || '',
-      location: equipment.location || '',
-      instrumentType: equipment.instrumentType || (equipment.type === 'instrument' ? 'Instrumento' : undefined),
-      supplyVoltage: equipment.supplyVoltage || '',
-      inputSignal: equipment.inputSignal || '',
-      outputSignal: equipment.outputSignal || '',
-      opValue: equipment.opValue || '',
-      date: new Date().toISOString().split('T')[0],
-      status: 'draft',
-      results: {
-        checklist: {},
-        measurements: {}
-      }
-    };
-    setCurrentForm(newForm);
-    setIsReadOnly(false);
-    setView('form');
-    setSearchTerm('');
-  };
+  const filteredData = useMemo(() => {
+    if (!searchTerm) return [];
+    const term = searchTerm.toLowerCase();
+    
+    const combined = [
+      ...mockData.map(m => ({ tag: m.tag, description: m.description, type: m.type })),
+      ...instrumentList.map(i => ({ tag: i.tag, description: i.instrument, type: 'instrument' })),
+      ...savedForms.map(f => ({ tag: f.tag, description: f.description, type: f.formType }))
+    ];
+    
+    const unique = Array.from(new Map(combined.map(item => [item.tag, item])).values());
+    
+    return unique.filter(item => 
+      item.tag.toLowerCase().includes(term) ||
+      item.description.toLowerCase().includes(term)
+    ).slice(0, 50);
+  }, [searchTerm, savedForms, mockData, instrumentList]);
 
   const handlePhotoUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    if (isReadOnly) setIsReadOnly(false);
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
@@ -550,6 +495,7 @@ function AppContent() {
   };
 
   const removePhoto = (index: number) => {
+    if (isReadOnly) setIsReadOnly(false);
     const currentPhotos = [...(currentForm.photos || [])];
     currentPhotos.splice(index, 1);
     setCurrentForm({ ...currentForm, photos: currentPhotos });
@@ -574,7 +520,11 @@ function AppContent() {
         </div>
         <div className="flex items-center gap-4">
           <div className="hidden sm:flex items-center gap-2">
-            {isOnline ? (
+            {isSyncing ? (
+              <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 text-[10px] font-bold uppercase rounded-full border border-blue-100 animate-pulse">
+                <RefreshCw className="w-3 h-3 animate-spin" /> Sincronizando
+              </div>
+            ) : isOnline ? (
               <div className="flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 text-[10px] font-bold uppercase rounded-full border border-green-100">
                 <Cloud className="w-3 h-3" /> Online
               </div>
@@ -626,23 +576,47 @@ function AppContent() {
                     </div>
                   </div>
                   
-                  <div className="relative">
-                    <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-6 h-6 text-blue-500" />
-                    <input 
-                      type="text"
-                      placeholder="Busque pela TAG, Descrição ou Folha..."
-                      className="w-full pl-14 pr-12 py-5 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:ring-0 focus:border-blue-500 outline-none transition-all font-medium text-lg placeholder:text-slate-300"
-                      value={searchTerm}
-                      onChange={handleSearch}
-                    />
-                    {searchTerm && (
-                      <button 
-                        onClick={() => setSearchTerm('')}
-                        className="absolute right-5 top-1/2 -translate-y-1/2 p-1 bg-slate-200/50 hover:bg-slate-200 rounded-full text-slate-500 transition-colors"
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
-                    )}
+                  <div className="flex gap-2 relative">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-6 h-6 text-blue-500" />
+                      <input 
+                        type="text"
+                        placeholder="Busque pela TAG, Descrição..."
+                        className="w-full pl-14 pr-12 py-5 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:ring-0 focus:border-blue-500 outline-none transition-all font-medium text-lg placeholder:text-slate-300"
+                        value={searchTerm}
+                        onChange={handleSearch}
+                      />
+                      {searchTerm && (
+                        <button 
+                          onClick={() => setSearchTerm('')}
+                          className="absolute right-5 top-1/2 -translate-y-1/2 p-2 bg-slate-200/50 hover:bg-slate-200 rounded-full text-slate-500 transition-colors"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      )}
+                    </div>
+                    <button 
+                      onClick={() => {
+                        const newTag = prompt("Digite a TAG do novo equipamento (ex: Z2P99):");
+                        if (newTag && newTag.trim()) {
+                           switchTag(newTag.trim().toUpperCase());
+                        }
+                      }}
+                      className="hidden sm:flex items-center justify-center gap-2 px-6 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl shadow-xl transition-all"
+                    >
+                      <Plus className="w-5 h-5" /> Cadastrar Manual
+                    </button>
+                    <button 
+                      onClick={() => {
+                        const newTag = prompt("Digite a TAG do novo equipamento (ex: Z2P99):");
+                        if (newTag && newTag.trim()) {
+                           switchTag(newTag.trim().toUpperCase());
+                        }
+                      }}
+                      className="sm:hidden flex items-center justify-center w-[72px] bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl shadow-xl transition-all"
+                    >
+                      <Plus className="w-6 h-6" />
+                    </button>
                   </div>
 
                   {searchTerm && (
@@ -657,7 +631,7 @@ function AppContent() {
                           return (
                             <div key={item.tag} className="group/item">
                               <button
-                                onClick={() => startNewForm(item)}
+                                onClick={() => switchTag(item.tag)}
                                 className="w-full text-left p-5 hover:bg-blue-50/50 transition-all flex items-center justify-between"
                               >
                                 <div className="flex items-center gap-4">
@@ -718,16 +692,10 @@ function AppContent() {
                           </div>
                           <div className="flex flex-col gap-3">
                             <button 
-                              onClick={() => startNewForm({ tag: searchTerm, description: 'Novo Motor Registrado em Campo', type: 'motor' })}
+                              onClick={() => switchTag(searchTerm.toUpperCase())}
                               className="btn-primary w-full"
                             >
-                              <RefreshCw className="w-5 h-5" /> Registrar como Motor
-                            </button>
-                            <button 
-                              onClick={() => startNewForm({ tag: searchTerm, description: 'Novo Instrumento Registrado em Campo', type: 'instrument' })}
-                              className="btn-secondary w-full"
-                            >
-                              <FileText className="w-5 h-5" /> Registrar como Instrumento
+                              <RefreshCw className="w-5 h-5" /> Registrar como Novo TAG
                             </button>
                           </div>
                         </div>
@@ -812,15 +780,7 @@ function AppContent() {
                             key={mainTag}
                             layout
                             className="glass-card p-4 rounded-3xl hover:border-blue-400 group cursor-pointer transition-all duration-300 active:scale-95"
-                            onClick={() => {
-                              if (mainSavedForm) {
-                                setCurrentForm(mainSavedForm);
-                                setIsReadOnly(true);
-                              } else {
-                                startNewForm(mainEquipInfo as EquipmentData);
-                              }
-                              setView('form');
-                            }}
+                            onClick={() => switchTag(mainTag)}
                           >
                             <div className="flex justify-between items-start mb-4">
                               <div className="space-y-1">
@@ -891,7 +851,7 @@ function AppContent() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden"
+              className={`bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden ${isReadOnly ? 'ficha-mode' : ''}`}
             >
               {/* Form Header */}
               <div className="bg-slate-900 text-white p-6">
@@ -906,14 +866,49 @@ function AppContent() {
                     </button>
                     <div>
                       <div className="text-blue-400 text-xs font-bold uppercase tracking-widest mb-1">Ficha de Comissionamento</div>
-                      <h2 className="text-2xl font-bold flex items-center gap-2">
-                        {currentForm.tag}
+                      <h2 className="text-xl font-bold flex items-center gap-2 flex-wrap">
+                        <div className="relative flex items-center max-w-full">
+                          <select 
+                            value={currentForm.tag}
+                            onChange={(e) => {
+                              if (e.target.value === 'NEW_INSTRUMENT') {
+                                setIsAddingInstrument(true);
+                                setNewInstrumentTag(parentForm.tag || groupTag || '');
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                              } else {
+                                switchTag(e.target.value);
+                              }
+                            }}
+                            className="bg-slate-800/50 text-white border border-slate-700/50 hover:border-blue-500 rounded-xl pl-3 pr-8 py-1.5 text-lg font-bold outline-none cursor-pointer appearance-none truncate w-full shadow-inner"
+                          >
+                            <option value={parentForm.tag || ''} className="text-slate-900 font-sans">
+                              ⚙️ {parentForm.tag} (Malha Principal)
+                            </option>
+                            {relatedEquipments.filter(e => e.type === 'instrument' && e.tag !== parentForm.tag).map(equip => {
+                              const isSavedLocally = parentForm.instruments?.[equip.tag];
+                              const isSavedGlobally = savedForms.some(f => f.tag === equip.tag);
+                              return (
+                                <option key={equip.tag} value={equip.tag} className="text-slate-800 font-medium font-sans">
+                                  ↳ {equip.tag} {isSavedLocally || isSavedGlobally ? '(✓ Salvo)' : `(${equip.description})`}
+                                </option>
+                              );
+                            })}
+                            {!isReadOnly && (
+                              <option value="NEW_INSTRUMENT" className="text-blue-700 font-bold bg-blue-50 font-sans">
+                                ➕ CADASTRAR NOVO INSTRUMENTO...
+                              </option>
+                            )}
+                          </select>
+                          <ChevronDown className="w-5 h-5 absolute right-2 pointer-events-none text-slate-400" />
+                        </div>
                         {isReadOnly && (
-                          <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Visualização</span>
+                          <button onClick={() => setIsReadOnly(false)} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded-full font-bold uppercase tracking-wider flex items-center gap-1 transition-colors">
+                            <Edit className="w-3 h-3" /> Editar
+                          </button>
                         )}
-                        {!currentForm.id && (
+                        {!currentForm.id && !parentForm.id && (
                           <span className="text-[10px] bg-blue-900/50 text-blue-300 border border-blue-800 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3" /> Pre-preenchido (Fonte 1/2)
+                            <CheckCircle2 className="w-3 h-3" /> Padrão Sugerido
                           </span>
                         )}
                       </h2>
@@ -934,7 +929,7 @@ function AppContent() {
                           <BookOpen className="w-4 h-4" /> Projeto
                         </button>
                         <button 
-                          onClick={() => exportPDF(currentForm as CommissioningForm)}
+                          onClick={() => exportPDF([parentForm as CommissioningForm, ...(Object.values(parentForm.instruments || {}) as CommissioningForm[])])}
                           className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl flex items-center gap-2 font-medium transition-colors"
                           title="Baixar PDF"
                         >
@@ -1448,125 +1443,38 @@ function AppContent() {
                       ))}
                     </div>
 
-                    {!isReadOnly && (
-                      <div className="flex flex-col items-center justify-center py-4 text-slate-400">
-                        {(!currentForm.photos || currentForm.photos.length === 0) && (
-                          <>
-                            <Camera className="w-12 h-12 mb-4 opacity-20" />
-                            <p className="text-sm mb-4">Nenhuma foto anexada</p>
-                          </>
-                        )}
-                        <div className="flex flex-wrap justify-center gap-3">
-                          <label className="cursor-pointer bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-xl flex items-center gap-2 font-medium transition-all shadow-lg shadow-blue-900/20 active:scale-95">
-                            <Camera className="w-5 h-5" />
-                            Tirar Foto
-                            <input 
-                              type="file" 
-                              accept="image/*" 
-                              capture="environment" 
-                              className="hidden" 
-                              onChange={handlePhotoUpload}
-                            />
-                          </label>
-                          <label className="cursor-pointer bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 px-6 py-2.5 rounded-xl flex items-center gap-2 font-medium transition-all active:scale-95">
-                            <Image className="w-5 h-5" />
-                            Anexar
-                            <input 
-                              type="file" 
-                              accept="image/*" 
-                              className="hidden" 
-                              onChange={handlePhotoUpload}
-                            />
-                          </label>
-                        </div>
+                    <div className="flex flex-col items-center justify-center py-4 text-slate-400">
+                      {(!currentForm.photos || currentForm.photos.length === 0) && (
+                        <>
+                          <Camera className="w-12 h-12 mb-4 opacity-20" />
+                          <p className="text-sm mb-4">Nenhuma foto anexada</p>
+                        </>
+                      )}
+                      <div className="flex flex-wrap justify-center gap-3">
+                        <label className="cursor-pointer bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-xl flex items-center gap-2 font-medium transition-all shadow-lg shadow-blue-900/20 active:scale-95">
+                          <Camera className="w-5 h-5" />
+                          Tirar Foto
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            capture="environment" 
+                          />
+                        </label>
+                        <label className="cursor-pointer bg-slate-800 hover:bg-slate-700 text-white px-6 py-2.5 rounded-xl flex items-center gap-2 font-medium transition-all shadow-lg shadow-slate-900/20 active:scale-95">
+                          <Image className="w-5 h-5" />
+                          Anexar
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            className="hidden" 
+                            onChange={handlePhotoUpload}
+                          />
+                        </label>
                       </div>
-                    )}
+                    </div>
                   </div>
                 </section>
-
-                {/* Universal Loop Navigation Section */}
-                {groupTag && (
-                  <section className="mt-12 pt-8 border-t border-slate-200">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                        <FileText className="w-4 h-4" />
-                        Navegação da Malha
-                      </h3>
-                      <span className="text-[10px] font-medium text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full">
-                        Motor: {groupTag}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                      {relatedEquipments.map(equip => {
-                        const isSaved = savedForms.some(f => f.tag === equip.tag);
-                        const isActive = currentForm.tag === equip.tag;
-                        return (
-                          <div className="flex flex-col gap-1 w-full">
-                            <div
-                              onClick={() => switchTag(equip.tag)}
-                              className={`flex items-center justify-between p-3 border transition-all group text-left rounded-xl cursor-pointer ${
-                                isActive 
-                                  ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-600/20' 
-                                  : 'bg-white hover:bg-slate-50 border-slate-200 hover:border-slate-300'
-                              }`}
-                            >
-                              <div className="flex-1 min-w-0 mr-2">
-                                <div className={`text-xs font-bold truncate ${isActive ? 'text-white' : 'text-slate-700'}`}>
-                                  {equip.tag}
-                                </div>
-                                <div className={`text-[10px] line-clamp-1 ${isActive ? 'text-blue-100' : 'text-slate-400'}`}>
-                                  {equip.description || (equip.type === 'motor' ? 'Motor' : 'Instrumento')}
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                {isActive ? (
-                                  <div className="w-5 h-5 bg-white/20 rounded-full flex items-center justify-center">
-                                    <Edit className="w-3 h-3 text-white" />
-                                  </div>
-                                ) : isSaved ? (
-                                  <CheckCircle2 className="w-4 h-4 text-green-500" />
-                                ) : (
-                                  <Plus className="w-4 h-4 text-slate-300 group-hover:text-blue-400" />
-                                )}
-                              </div>
-                            </div>
-                            
-                            {(pdfIndex.some(p => p.tag === equip.tag || equip.tag.startsWith(p.tag)) || pdfExtracted.index.some(p => p.tag === equip.tag)) && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const sheet = pdfIndex.find(p => equip.tag === p.tag || equip.tag.startsWith(p.tag)) || pdfExtracted.index.find(p => p.tag === equip.tag);
-                                  if (sheet) {
-                                    setPdfPage(sheet.page);
-                                    setIsPdfOpen(true);
-                                  }
-                                }}
-                                className="flex items-center justify-center gap-1.5 py-1 text-[8px] font-black uppercase tracking-tighter text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all border border-transparent hover:border-blue-100"
-                              >
-                                <Eye className="w-3 h-3" />
-                                Ver no Projeto
-                              </button>
-                            )}
-                          </div>
-
-                        );
-                      })}
-                      {!isReadOnly && (
-                        <button 
-                          onClick={() => {
-                            setIsAddingInstrument(true);
-                            setNewInstrumentTag(groupTag);
-                            window.scrollTo({ top: 0, behavior: 'smooth' });
-                          }}
-                          className="flex items-center justify-center gap-2 p-3 bg-white border border-dashed border-slate-300 hover:border-blue-400 hover:bg-blue-50 rounded-xl transition-all group text-slate-400 hover:text-blue-600"
-                        >
-                          <Plus className="w-4 h-4" />
-                          <span className="text-xs font-bold">Novo Item</span>
-                        </button>
-                      )}
-                    </div>
-                  </section>
-                )}
+                {/* Universal Loop Navigation Section Removed (Moved to Dropdown Header) */}
               </fieldset>
               
               {!isReadOnly && (
@@ -1677,7 +1585,7 @@ function AppContent() {
       {isPdfOpen && (
         <PdfViewer 
           pdfUrl="/arquivos/ED-E-Z2000-409-02.pdf"
-          pageNumber={pdfPage + pdfOffset}
+          pageNumber={pdfPage}
           onClose={() => setIsPdfOpen(false)}
           equipmentTag={pdfIndex.find(p => p.page === pdfPage)?.tag || pdfExtracted.index.find(p => p.page === pdfPage)?.tag}
           equipmentDescription={pdfIndex.find(p => p.page === pdfPage)?.description || pdfExtracted.index.find(p => p.page === pdfPage)?.description}

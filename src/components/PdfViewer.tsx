@@ -1,10 +1,6 @@
-/**
- * PdfViewer — Renderiza uma única página do PDF sob demanda.
- * Estratégia "Lazy": carrega apenas a página solicitada, não o PDF inteiro.
- * Isso resolve o problema de lentidão com PDFs de 50MB e centenas de páginas.
- */
-
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { Search } from 'lucide-react';
+import { pdfIndex } from '../data/pdfIndex';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Configuração do worker do PDF.js
@@ -74,7 +70,26 @@ export default function PdfViewer({
   const [totalPages, setTotalPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(pageNumber);
   const [scale, setScale] = useState(1.5);
+  const [localSearch, setLocalSearch] = useState('');
   const renderTaskRef = useRef<import('pdfjs-dist').RenderTask | null>(null);
+
+  // Busca rápida de TAG usando pdfIndex
+  const handleSearchTag = () => {
+    if (!localSearch.trim()) return;
+    const term = localSearch.toUpperCase();
+    const sheet = pdfIndex.find(p => p.tag === term || p.tag.includes(term));
+    if (sheet) {
+      setCurrentPage(sheet.page);
+      setStatus('loading');
+    } else {
+      alert(`A TAG "${term}" não foi encontrada no índice do Projeto.`);
+    }
+  };
+
+  // Permite dar Enter na barra de pesquisa
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') handleSearchTag();
+  };
 
   // ── Renderiza a página no canvas ──────────────────────────────────────────
   const renderPage = useCallback(async (pageNum: number, renderScale: number) => {
@@ -83,9 +98,14 @@ export default function PdfViewer({
 
     setStatus('loading');
 
-    // Cancela render anterior se existir
+    // Cancela render anterior se existir e AGUARDA a limpeza
     if (renderTaskRef.current) {
       renderTaskRef.current.cancel();
+      try {
+        await renderTaskRef.current.promise;
+      } catch (e) {
+        // Ignora a exception de cancelamento
+      }
       renderTaskRef.current = null;
     }
 
@@ -118,11 +138,13 @@ export default function PdfViewer({
 
   // ── Efeito: renderiza sempre que página ou escala mudam ───────────────────
   useEffect(() => {
-    renderPage(currentPage, scale);
+    renderPage(currentPage + currentOffset, scale);
     return () => {
-      renderTaskRef.current?.cancel();
+      if (renderTaskRef.current) {
+         renderTaskRef.current.cancel();
+      }
     };
-  }, [currentPage, scale, renderPage]);
+  }, [currentPage, scale, currentOffset, renderPage]);
 
   // ── Sincroniza pageNumber externo com estado interno ──────────────────────
   useEffect(() => {
@@ -136,68 +158,89 @@ export default function PdfViewer({
   const zoomFit = () => setScale(1.5);
 
   return (
-    <div className="pdf-viewer-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="pdf-viewer-modal" ref={containerRef}>
+    <div className="fixed inset-0 z-50 flex flex-col bg-slate-900/95 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="flex-1 flex flex-col w-full max-w-6xl mx-auto bg-white shadow-2xl relative" ref={containerRef}>
 
-        {/* ── Header ── */}
-        <div className="pdf-viewer-header">
-          <div className="pdf-viewer-header-info">
-            {equipmentTag && <span className="pdf-tag-badge">{equipmentTag}</span>}
-            <div className="pdf-viewer-title">
-              <strong>ED-E-Z2000-409-02</strong>
-              {equipmentDescription && <span className="pdf-viewer-subtitle"> — {equipmentDescription}</span>}
+        {/* ── Header e Busca ── */}
+        <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50 shrink-0">
+          <div className="flex items-center gap-4 flex-1">
+            <div className="flex items-center gap-2 relative">
+              <input 
+                type="text" 
+                placeholder="Pesquisar TAG do projeto..."
+                disabled={status === 'loading'}
+                className="pl-3 pr-10 py-1.5 border border-slate-300 rounded-lg text-sm w-48 focus:w-64 transition-all uppercase focus:ring-2 focus:ring-blue-500 outline-none"
+                value={localSearch}
+                onChange={(e) => setLocalSearch(e.target.value)}
+                onKeyDown={handleKeyDown}
+              />
+              <button 
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-blue-600 transition-colors"
+                onClick={handleSearchTag}
+                title="Buscar no PDF"
+              >
+                <Search className="w-4 h-4" />
+              </button>
             </div>
+            {equipmentTag && (
+              <span className="hidden sm:inline-flex px-2 px-1 bg-blue-100 text-blue-800 text-xs font-bold rounded">
+                TAG Atual: {equipmentTag}
+              </span>
+            )}
           </div>
-          <button className="pdf-close-btn" onClick={onClose} title="Fechar">✕</button>
+          
+          <button 
+            className="p-2 bg-slate-200 hover:bg-red-100 hover:text-red-600 rounded-full transition-colors shrink-0 ml-4" 
+            onClick={onClose} 
+            title="Fechar Visualizador"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
         </div>
 
-        {/* ── Toolbar ── */}
-        <div className="pdf-viewer-toolbar">
-          <div className="pdf-toolbar-nav">
-            <button onClick={goToPrev} disabled={currentPage <= 1} className="pdf-nav-btn">‹ Ant.</button>
-            <span className="pdf-page-info">
-              Página <strong>{currentPage}</strong> / {totalPages || '…'}
+        {/* ── Toolbar Inferior de Controles ── */}
+        <div className="flex flex-wrap items-center justify-between p-2 lg:p-3 border-b border-slate-200 bg-white shrink-0 text-sm gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
+            <button onClick={goToPrev} disabled={currentPage <= 1} className="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded font-medium disabled:opacity-50 transition-colors shrink-0">‹ Ant.</button>
+            <span className="px-2 font-medium text-slate-600 tracking-tight whitespace-nowrap min-w-[120px] text-center">
+              Página <strong className="text-slate-900">{currentPage + currentOffset}</strong> / {totalPages || '…'}
             </span>
-            <button onClick={goToNext} disabled={currentPage >= totalPages} className="pdf-nav-btn">Próx. ›</button>
+            <button onClick={goToNext} disabled={currentPage >= totalPages} className="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded font-medium disabled:opacity-50 transition-colors shrink-0">Próx. ›</button>
           </div>
-          <div className="pdf-toolbar-zoom">
-            <div className="pdf-offset-control" title="Ajuste o offset se a página estiver errada">
-              <span>Offset:</span>
-              <button 
-                onClick={() => onOffsetChange(currentOffset - 1)}
-                className="pdf-offset-btn"
-              >-</button>
-              <strong className={currentOffset !== 0 ? 'text-amber-600' : ''}>
+          <div className="flex items-center gap-1 sm:gap-3">
+            <div className="hidden md:flex items-center gap-1 bg-slate-100 px-2 py-1 rounded" title="Ajuste fino de Posição da Página Original vs PDF">
+              <span className="text-xs font-medium text-slate-500 mr-1">Calibragem:</span>
+              <button onClick={() => onOffsetChange(currentOffset - 1)} className="w-6 h-6 flex items-center justify-center bg-white border border-slate-200 hover:border-blue-500 rounded text-slate-700">−</button>
+              <strong className={`text-xs w-6 text-center ${currentOffset !== 0 ? 'text-amber-600' : 'text-slate-700'}`}>
                 {currentOffset > 0 ? `+${currentOffset}` : currentOffset}
               </strong>
-              <button 
-                onClick={() => onOffsetChange(currentOffset + 1)}
-                className="pdf-offset-btn"
-              >+</button>
+              <button onClick={() => onOffsetChange(currentOffset + 1)} className="w-6 h-6 flex items-center justify-center bg-white border border-slate-200 hover:border-blue-500 rounded text-slate-700">+</button>
             </div>
-            <div className="pdf-toolbar-divider" />
-            <button onClick={zoomOut} className="pdf-zoom-btn" title="Diminuir zoom">−</button>
-            <span className="pdf-zoom-label">{Math.round(scale * 100)}%</span>
-            <button onClick={zoomIn} className="pdf-zoom-btn" title="Aumentar zoom">+</button>
-            <button onClick={zoomFit} className="pdf-zoom-btn pdf-zoom-fit" title="Tamanho padrão">⊡</button>
+            <div className="w-px h-6 bg-slate-200 hidden sm:block mx-1" />
+            <button onClick={zoomOut} className="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded text-lg font-medium transition-colors" title="Diminuir zoom">−</button>
+            <span className="w-12 text-center text-xs font-bold text-slate-600">{Math.round(scale * 100)}%</span>
+            <button onClick={zoomIn} className="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded text-lg font-medium transition-colors" title="Aumentar zoom">+</button>
+            <button onClick={zoomFit} className="px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded ml-2 text-xs font-bold transition-colors" title="Tamanho padrão">FIT</button>
           </div>
         </div>
 
         {/* ── Área de renderização ── */}
-        <div className="pdf-canvas-area">
+        <div className="flex-1 overflow-auto bg-slate-200/50 p-4 sm:p-8 flex items-center justify-center relative">
           {status === 'loading' && (
-            <div className="pdf-loading-overlay">
-              <div className="pdf-spinner" />
-              <span>Carregando página {currentPage}…</span>
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-100/80 backdrop-blur-sm z-10">
+              <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
+              <span className="font-semibold text-slate-700">Carregando a página {currentPage + currentOffset}…</span>
             </div>
           )}
           {status === 'error' && (
-            <div className="pdf-error-msg">⚠️ {errorMsg}</div>
+            <div className="absolute inset-x-4 top-4 bg-red-100 text-red-700 border border-red-200 p-4 rounded-xl flex items-center gap-3 z-10 shadow-lg">
+              <span className="text-xl">⚠️</span> {errorMsg}
+            </div>
           )}
           <canvas
             ref={canvasRef}
-            className="pdf-canvas"
-            style={{ opacity: status === 'ready' ? 1 : 0.3, transition: 'opacity 0.2s' }}
+            className="max-w-full shadow-2xl bg-white transition-opacity duration-300"
+            style={{ opacity: status === 'ready' ? 1 : 0.3 }}
           />
         </div>
 
