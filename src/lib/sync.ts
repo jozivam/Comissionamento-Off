@@ -1,15 +1,39 @@
 import { localDb, type FormRecord } from './db';
 import { supabase } from './supabase';
-import { Network } from '@capacitor/network';
+
+/**
+ * Verifica conectividade de forma segura em qualquer ambiente
+ * - Browser/PWA: usa navigator.onLine (nativo do browser)
+ * - App nativo (Capacitor): tenta Network plugin, cai para navigator.onLine
+ */
+async function isNetworkConnected(): Promise<boolean> {
+  // Sempre confia no navigator.onLine como fonte primária no browser
+  if (typeof navigator !== 'undefined' && !navigator.onLine) return false;
+
+  try {
+    // Tenta o plugin Capacitor (funciona em APK, não no browser)
+    const { Network } = await import('@capacitor/network');
+    const status = await Network.getStatus();
+    return status.connected;
+  } catch {
+    // Fallback seguro para ambientes web
+    return navigator.onLine;
+  }
+}
 
 export async function syncFormsWithSupabase() {
-  const status = await Network.getStatus();
-  if (!status.connected) return;
+  const connected = await isNetworkConnected();
+  if (!connected) {
+    console.log('[Sync] Offline - sync ignorado');
+    return;
+  }
 
   try {
     // 1. Enviar os forms que estão 'pending' para o Supabase
     const pendingForms = await localDb.forms.where('syncStatus').equals('pending').toArray();
     
+    console.log(`[Sync] Enviando ${pendingForms.length} form(s) pendente(s)...`);
+
     for (const form of pendingForms) {
       // Remove syncStatus before sending to Supabase
       const { syncStatus, ...dataToSync } = form;
@@ -20,25 +44,26 @@ export async function syncFormsWithSupabase() {
         
       if (!error) {
         await localDb.forms.update(form.id, { syncStatus: 'synced' });
+        console.log(`[Sync] ✓ Form ${form.tag} sincronizado`);
       } else {
-        console.error('Erro ao sincronizar form ', form.id, error);
+        console.error('[Sync] ✗ Erro ao sincronizar form', form.id, error.message, error.details);
       }
     }
 
-    // 2. Buscar atualizações do Supabase (para pegar forms de outros dispositivos ou offline)
-    // Buscamos dados modificados desde a ultima vez (poderia ser otimizado guardando a ultima timestamp, 
-    // mas para garantir buscaremos os recentes ou todos os do usuário logado se houvesse auth. 
-    // Como é offline-first, buscaremos todos - ajustar conforme o volume)
+    // 2. Buscar atualizações do Supabase (para outros dispositivos)
     const { data: remoteForms, error: fetchError } = await supabase
       .from('forms')
       .select('*');
 
-    if (!fetchError && remoteForms) {
-      // Comparar e salvar no banco local
+    if (fetchError) {
+      console.error('[Sync] Erro ao buscar dados remotos:', fetchError.message);
+      return;
+    }
+
+    if (remoteForms && remoteForms.length > 0) {
       await localDb.transaction('rw', localDb.forms, async () => {
         for (const remote of remoteForms) {
           const local = await localDb.forms.get(remote.id);
-          // Se não existir localmente, ou se o remoto for mais novo
           if (!local || new Date(remote.updatedAt).getTime() > new Date(local.updatedAt).getTime()) {
             await localDb.forms.put({
               ...remote,
@@ -47,10 +72,11 @@ export async function syncFormsWithSupabase() {
           }
         }
       });
+      console.log(`[Sync] ✓ ${remoteForms.length} form(s) recebido(s) do Supabase`);
     }
 
   } catch (error) {
-    console.error('Falha geral na sincronização:', error);
+    console.error('[Sync] Falha geral na sincronização:', error);
   }
 }
 
@@ -58,8 +84,7 @@ export async function syncFormsWithSupabase() {
 export function setupRealtimeSync(onUpdate: () => void) {
   const channel = supabase
     .channel('public:forms')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'forms' }, async (payload) => {
-      // Quando algo muda no supabase, fazemos um sync e chamamos o callback que atualiza a UI
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'forms' }, async (_payload) => {
       await syncFormsWithSupabase();
       onUpdate();
     })

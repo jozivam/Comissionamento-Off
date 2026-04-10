@@ -610,6 +610,19 @@ function AppContent() {
                   >
                     <Download className="w-4 h-4" /> Exportar CSV
                   </button>
+                  {savedForms.some(f => f.syncStatus === 'pending') && isOnline && (
+                    <button
+                      onClick={async () => {
+                        setIsSyncing(true);
+                        try { await syncFormsWithSupabase(); } finally { setIsSyncing(false); }
+                      }}
+                      disabled={isSyncing}
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-colors shadow-sm"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                      {isSyncing ? 'Sincronizando...' : `Sincronizar (${savedForms.filter(f => f.syncStatus === 'pending').length})`}
+                    </button>
+                  )}
                 </div>
               </div>
 
