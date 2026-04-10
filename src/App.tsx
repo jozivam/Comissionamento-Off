@@ -1356,6 +1356,30 @@ function AppContent() {
                     ) : (
                       <>
                         <div className="space-y-4">
+                          {/* Campo Equipamento — TAG do equipamento pai */}
+                          <div className="space-y-1">
+                            <label className="text-xs font-medium text-slate-500 ml-1">Equipamento (TAG Vinculada)</label>
+                            <div className="flex gap-2">
+                              <input 
+                                type="text" 
+                                value={currentForm.linkedEquipment || parentForm.tag || ''}
+                                onChange={e => setCurrentForm({...currentForm, linkedEquipment: e.target.value.toUpperCase()})}
+                                placeholder="Ex: Z2P32M1"
+                                className="flex-1 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl focus:ring-2 focus:ring-amber-400 outline-none transition-all font-mono font-bold text-slate-800"
+                              />
+                              {parentForm.tag && !currentForm.linkedEquipment && (
+                                <button
+                                  type="button"
+                                  onClick={() => setCurrentForm({...currentForm, linkedEquipment: parentForm.tag})}
+                                  className="px-3 py-2 bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-bold rounded-xl transition-colors whitespace-nowrap border border-amber-200"
+                                  title="Usar equipamento da malha atual"
+                                >
+                                  ⇪ {parentForm.tag}
+                                </button>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-slate-400 ml-1">TAG do equipamento ao qual este instrumento pertence</p>
+                          </div>
                           <div className="space-y-1">
                             <label className="text-xs font-medium text-slate-500 ml-1">Localização</label>
                             <input 

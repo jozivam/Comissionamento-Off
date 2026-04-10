@@ -43,6 +43,7 @@ export interface FormRecord {
 
   // Novos campos:
   anilhasOk?: boolean;
+  linkedEquipment?: string; // TAG do equipamento ao qual este instrumento está vinculado
   instruments?: Record<string, any>; // Para salvar instrumentos aninhados na ficha do equipamento
 }
 
