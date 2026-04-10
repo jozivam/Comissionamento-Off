@@ -98,7 +98,7 @@
 }
 
 /* Ficha View Static Mode */
-.ficha-mode input, .ficha-mode select:not(.bg-transparent), .ficha-mode textarea {
+.ficha-mode input, .ficha-mode select:not(.bg-transparent):not(.nav-select), .ficha-mode textarea {
   border-color: transparent !important;
   background-color: #f8fafc !important; 
   color: #0f172a !important;
@@ -112,4 +112,23 @@
 }
 .ficha-mode input[type="checkbox"] {
   border-radius: 4px;
+}
+
+/* Ocultar scrollbar mantendo scroll funcional */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Touch improvements for mobile */
+button, select, input {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Safe area padding (notch/home bar) */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 12px);
 }

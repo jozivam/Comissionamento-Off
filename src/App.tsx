@@ -78,7 +78,7 @@ function AppContent() {
       setParentForm(prev => typeof updated === 'function' ? updated(prev) : updated);
     }
   };
-  const [view, setView] = useState<'dashboard' | 'form'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'form' | 'dados'>('dashboard');
   const [savedSearchTerm, setSavedSearchTerm] = useState('');
   const [isReadOnly, setIsReadOnly] = useState(false);
   const [formToDelete, setFormToDelete] = useState<string | null>(null);
@@ -144,16 +144,39 @@ function AppContent() {
   const relatedEquipments = useMemo(() => {
     if (!groupTag) return [];
     
-    const fromMock = mockData.filter(item => item.tag.startsWith(groupTag));
+    // 1. Do mockData - todos que começam com a tag do grupo (inclui sub-motores e instrumentos)
+    const fromMock = mockData.filter(item => item.tag.startsWith(groupTag) && item.tag !== groupTag);
+    
+    // 2. Do instrumentList (CSV) - instrumentos cuja tag começa com o groupTag e não estão no mockData
+    const fromInstr = instrumentList
+      .filter(i => 
+        i.tag && 
+        i.tag.startsWith(groupTag) && 
+        i.tag !== groupTag &&
+        i.tag.length > 4 && // evita linhas de cabeçalho do CSV
+        !fromMock.some(m => m.tag === i.tag)
+      )
+      .map(i => ({ 
+        tag: i.tag, 
+        description: [i.instrument, i.equipment].filter(Boolean).join(' — ').substring(0, 60) || i.tag, 
+        type: 'instrument' as const
+      }));
+
+    // 3. De fichas salvas localmente que não estão em nenhuma das listas acima
     const fromSaved = savedForms
-      .filter(f => f.tag.startsWith(groupTag) && !fromMock.some(m => m.tag === f.tag))
+      .filter(f => 
+        f.tag.startsWith(groupTag) && 
+        f.tag !== groupTag &&
+        !fromMock.some(m => m.tag === f.tag) &&
+        !fromInstr.some(i => i.tag === f.tag)
+      )
       .map(f => ({ 
         tag: f.tag, 
-        description: f.description, 
+        description: f.description || f.tag, 
         type: f.formType as 'motor' | 'instrument' | 'botoeira' 
       }));
       
-    return [...fromMock, ...fromSaved].sort((a, b) => a.tag.localeCompare(b.tag));
+    return [...fromMock, ...fromInstr, ...fromSaved].sort((a, b) => a.tag.localeCompare(b.tag));
   }, [groupTag, savedForms]);
 
   const switchTag = (tag: string) => {
@@ -553,7 +576,152 @@ function AppContent() {
 
       <main className="max-w-4xl mx-auto p-4 md:p-8 pb-32">
         <AnimatePresence mode="wait">
-          {view === 'dashboard' ? (
+          {view === 'dados' ? (
+            <motion.div
+              key="dados"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-6"
+            >
+              {/* Dados Header */}
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-black text-slate-900">📊 Planilha de Dados</h2>
+                    <p className="text-sm text-slate-500 mt-1">{savedForms.length} fichas salvas · {savedForms.filter(f => f.syncStatus === 'synced').length} sincronizadas</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      // Exportar CSV
+                      const headers = ['TAG','Tipo','Descrição','Fabricante','Modelo','Nº Série','Data','CCM','Gaveta','IP','Potência','Corrente','RPM','Tensão','Status','Atualizado'];
+                      const rows = savedForms.map(f => [
+                        f.tag, f.formType, f.description || '', f.manufacturer || '', f.model || '',
+                        f.serialNumber || '', f.date || '', f.ccm || '', f.gaveta || '',
+                        f.ipAddress || '', f.power || '', f.current || '', f.rpm || '',
+                        f.voltage || '', f.status, new Date(f.updatedAt).toLocaleDateString('pt-BR')
+                      ]);
+                      const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+                      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a'); a.href = url; a.download = `comissionamento-${new Date().toISOString().slice(0,10)}.csv`; a.click();
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 text-white text-sm font-bold rounded-xl transition-colors shadow-sm"
+                  >
+                    <Download className="w-4 h-4" /> Exportar CSV
+                  </button>
+                </div>
+              </div>
+
+              {savedForms.length === 0 ? (
+                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-16 text-center">
+                  <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Database className="w-8 h-8 text-slate-300" />
+                  </div>
+                  <h3 className="font-bold text-slate-700 mb-2">Nenhuma ficha salva ainda</h3>
+                  <p className="text-sm text-slate-400">Comece preenchendo uma ficha de equipamento ou instrumento.</p>
+                  <button onClick={() => setView('dashboard')} className="mt-4 px-6 py-2 bg-blue-600 text-white font-bold rounded-xl text-sm hover:bg-blue-500 transition-colors">
+                    Ir para o Painel
+                  </button>
+                </div>
+              ) : (
+                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                  {/* Mobile: Cards */}
+                  <div className="block md:hidden divide-y divide-slate-100">
+                    {savedForms.map(f => (
+                      <div key={f.id} className="p-4 hover:bg-slate-50 cursor-pointer transition-colors" onClick={() => switchTag(f.tag)}>
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-lg">{f.formType === 'instrument' ? '📡' : '⚙️'}</span>
+                            <div className="min-w-0">
+                              <div className="font-black text-slate-900 text-sm truncate">{f.tag}</div>
+                              <div className="text-[11px] text-slate-500 truncate">{f.description || '—'}</div>
+                            </div>
+                          </div>
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full flex-shrink-0 ${f.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                            {f.status === 'completed' ? 'Concluída' : 'Rascunho'}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] text-slate-600 mt-2">
+                          {f.manufacturer && <div><span className="text-slate-400">Fab:</span> {f.manufacturer}</div>}
+                          {f.model && <div><span className="text-slate-400">Mod:</span> {f.model}</div>}
+                          {f.serialNumber && <div><span className="text-slate-400">NS:</span> {f.serialNumber}</div>}
+                          {f.date && <div><span className="text-slate-400">Data:</span> {f.date}</div>}
+                          {f.ccm && <div><span className="text-slate-400">CCM:</span> {f.ccm}</div>}
+                          {f.gaveta && <div><span className="text-slate-400">Gaveta:</span> {f.gaveta}</div>}
+                          {f.power && <div><span className="text-slate-400">Potência:</span> {f.power}</div>}
+                          {f.current && <div><span className="text-slate-400">Corrente:</span> {f.current}</div>}
+                          {f.voltage && <div><span className="text-slate-400">Tensão:</span> {f.voltage}</div>}
+                          {f.rpm && <div><span className="text-slate-400">RPM:</span> {f.rpm}</div>}
+                          {f.ipAddress && <div><span className="text-slate-400">IP:</span> {f.ipAddress}</div>}
+                        </div>
+                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${f.syncStatus === 'synced' ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'}`}>
+                            {f.syncStatus === 'synced' ? '✓ Sync' : '⏳ Pendente'}
+                          </span>
+                          <span className="text-[9px] text-slate-400">{new Date(f.updatedAt).toLocaleDateString('pt-BR')}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Desktop: Table */}
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200">
+                          <th className="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 whitespace-nowrap">Tipo</th>
+                          <th className="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 whitespace-nowrap">TAG</th>
+                          <th className="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500">Descrição</th>
+                          <th className="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 whitespace-nowrap">Fabricante</th>
+                          <th className="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 whitespace-nowrap">Modelo</th>
+                          <th className="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 whitespace-nowrap">Nº Série</th>
+                          <th className="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 whitespace-nowrap">Data</th>
+                          <th className="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 whitespace-nowrap">CCM</th>
+                          <th className="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 whitespace-nowrap">Gaveta</th>
+                          <th className="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 whitespace-nowrap">Potência</th>
+                          <th className="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 whitespace-nowrap">Corrente</th>
+                          <th className="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 whitespace-nowrap">Tensão</th>
+                          <th className="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 whitespace-nowrap">RPM</th>
+                          <th className="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 whitespace-nowrap">Status</th>
+                          <th className="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 whitespace-nowrap">Sync</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {savedForms.map((f, i) => (
+                          <tr key={f.id} className={`hover:bg-blue-50/50 cursor-pointer transition-colors ${i % 2 === 0 ? '' : 'bg-slate-50/30'}`} onClick={() => switchTag(f.tag)}>
+                            <td className="px-4 py-3 text-center text-base">{f.formType === 'instrument' ? '📡' : '⚙️'}</td>
+                            <td className="px-4 py-3 font-black text-slate-900 whitespace-nowrap">{f.tag}</td>
+                            <td className="px-4 py-3 text-slate-600 max-w-[200px] truncate">{f.description || '—'}</td>
+                            <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{f.manufacturer || '—'}</td>
+                            <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{f.model || '—'}</td>
+                            <td className="px-4 py-3 text-slate-600 font-mono text-xs whitespace-nowrap">{f.serialNumber || '—'}</td>
+                            <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{f.date || '—'}</td>
+                            <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{f.ccm || '—'}</td>
+                            <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{f.gaveta || '—'}</td>
+                            <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{f.power || '—'}</td>
+                            <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{f.current || '—'}</td>
+                            <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{f.voltage || '—'}</td>
+                            <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{f.rpm || '—'}</td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${f.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                                {f.status === 'completed' ? 'Concluída' : 'Rascunho'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${f.syncStatus === 'synced' ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'}`}>
+                                {f.syncStatus === 'synced' ? '✓ Sync' : '⏳'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          ) : view === 'dashboard' ? (
             <motion.div 
               key="dashboard"
               initial={{ opacity: 0, scale: 0.98 }}
@@ -596,24 +764,14 @@ function AppContent() {
                       )}
                     </div>
                     <button 
-                      onClick={() => {
-                        const newTag = prompt("Digite a TAG do novo equipamento (ex: Z2P99):");
-                        if (newTag && newTag.trim()) {
-                           switchTag(newTag.trim().toUpperCase());
-                        }
-                      }}
-                      className="hidden sm:flex items-center justify-center gap-2 px-6 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl shadow-xl transition-all"
+                      onClick={() => setIsAddingInstrument(true)}
+                      className="hidden sm:flex items-center justify-center gap-2 px-5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl shadow-xl transition-all h-full min-h-[48px]"
                     >
-                      <Plus className="w-5 h-5" /> Cadastrar Manual
+                      <Plus className="w-5 h-5" /> Cadastrar
                     </button>
                     <button 
-                      onClick={() => {
-                        const newTag = prompt("Digite a TAG do novo equipamento (ex: Z2P99):");
-                        if (newTag && newTag.trim()) {
-                           switchTag(newTag.trim().toUpperCase());
-                        }
-                      }}
-                      className="sm:hidden flex items-center justify-center w-[72px] bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl shadow-xl transition-all"
+                      onClick={() => setIsAddingInstrument(true)}
+                      className="sm:hidden flex items-center justify-center w-[52px] min-h-[48px] bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl shadow-xl transition-all"
                     >
                       <Plus className="w-6 h-6" />
                     </button>
@@ -692,10 +850,10 @@ function AppContent() {
                           </div>
                           <div className="flex flex-col gap-3">
                             <button 
-                              onClick={() => switchTag(searchTerm.toUpperCase())}
+                              onClick={() => { setIsAddingInstrument(true); setNewInstrumentTag(searchTerm.toUpperCase()); }}
                               className="btn-primary w-full"
                             >
-                              <RefreshCw className="w-5 h-5" /> Registrar como Novo TAG
+                              <Plus className="w-5 h-5" /> Cadastrar Nova TAG
                             </button>
                           </div>
                         </div>
@@ -854,22 +1012,22 @@ function AppContent() {
               className={`bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden ${isReadOnly ? 'ficha-mode' : ''}`}
             >
               {/* Form Header */}
-              <div className="bg-slate-900 text-white p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex items-center gap-4">
+              <div className="bg-slate-900 text-white p-4 sm:p-6">
+                <div className="flex flex-col xl:flex-row justify-between items-start gap-4 mb-4">
+                  <div className="flex items-start gap-3 w-full xl:w-auto">
                     <button 
                       onClick={() => setView('dashboard')}
-                      className="p-2 hover:bg-slate-800 rounded-xl transition-colors text-slate-400 hover:text-white"
+                      className="p-2 hover:bg-slate-800 rounded-xl transition-colors text-slate-400 hover:text-white mt-0.5 flex-shrink-0"
                       title="Voltar"
                     >
                       <ChevronLeft className="w-6 h-6" />
                     </button>
-                    <div>
-                      <div className="text-blue-400 text-xs font-bold uppercase tracking-widest mb-1">Ficha de Comissionamento</div>
-                      <h2 className="text-xl font-bold flex items-center gap-2 flex-wrap">
-                        <div className="relative flex items-center max-w-full">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-blue-400 text-[10px] sm:text-xs font-bold uppercase tracking-widest mb-1">Ficha de Comissionamento</div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="relative flex items-center w-full">
                           <select 
-                            value={currentForm.tag}
+                            value={activeInstrumentTag || (parentForm.tag || '')}
                             onChange={(e) => {
                               if (e.target.value === 'NEW_INSTRUMENT') {
                                 setIsAddingInstrument(true);
@@ -879,84 +1037,86 @@ function AppContent() {
                                 switchTag(e.target.value);
                               }
                             }}
-                            className="bg-slate-800/50 text-white border border-slate-700/50 hover:border-blue-500 rounded-xl pl-3 pr-8 py-1.5 text-lg font-bold outline-none cursor-pointer appearance-none truncate w-full shadow-inner"
+                            className="nav-select bg-slate-800/50 text-white border border-slate-700/50 hover:border-blue-500 rounded-xl pl-3 pr-8 py-2 text-sm font-bold outline-none cursor-pointer appearance-none w-full shadow-inner"
                           >
                             <option value={parentForm.tag || ''} className="text-slate-900 font-sans">
                               ⚙️ {parentForm.tag} (Malha Principal)
                             </option>
-                            {relatedEquipments.filter(e => e.type === 'instrument' && e.tag !== parentForm.tag).map(equip => {
-                              const isSavedLocally = parentForm.instruments?.[equip.tag];
-                              const isSavedGlobally = savedForms.some(f => f.tag === equip.tag);
+                            {Array.from(new Set([
+                              ...relatedEquipments.filter(e => e.tag !== parentForm.tag).map(e => e.tag),
+                              ...Object.keys(parentForm.instruments || {})
+                            ])).map(tag => {
+                              const equip = relatedEquipments.find(e => e.tag === tag);
+                              const savedInstr = (parentForm.instruments as any)?.[tag];
+                              const isMotor = equip?.type === 'motor';
+                              const desc = equip?.description || savedInstr?.description || 'Instrumento';
+                              const icon = isMotor ? '⚙️' : '📡';
                               return (
-                                <option key={equip.tag} value={equip.tag} className="text-slate-800 font-medium font-sans">
-                                  ↳ {equip.tag} {isSavedLocally || isSavedGlobally ? '(✓ Salvo)' : `(${equip.description})`}
+                                <option key={tag} value={tag} className="text-slate-800 font-medium font-sans">
+                                  {icon} {tag} — {desc.substring(0, 50)}
                                 </option>
                               );
                             })}
-                            {!isReadOnly && (
-                              <option value="NEW_INSTRUMENT" className="text-blue-700 font-bold bg-blue-50 font-sans">
-                                ➕ CADASTRAR NOVO INSTRUMENTO...
-                              </option>
-                            )}
+                            <option value="NEW_INSTRUMENT" className="text-green-800 font-bold bg-green-50 font-sans">
+                              ➕ + Cadastrar Novo Instrumento...
+                            </option>
                           </select>
-                          <ChevronDown className="w-5 h-5 absolute right-2 pointer-events-none text-slate-400" />
+                          <ChevronDown className="w-4 h-4 absolute right-2 pointer-events-none text-slate-400" />
                         </div>
-                        {isReadOnly && (
-                          <button onClick={() => setIsReadOnly(false)} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded-full font-bold uppercase tracking-wider flex items-center gap-1 transition-colors">
-                            <Edit className="w-3 h-3" /> Editar
-                          </button>
-                        )}
-                        {!currentForm.id && !parentForm.id && (
+                        {!currentForm.id && !parentForm.id && mockData.some(m => m.tag === currentForm.tag) && (
                           <span className="text-[10px] bg-blue-900/50 text-blue-300 border border-blue-800 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3" /> Padrão Sugerido
+                            <CheckCircle2 className="w-3 h-3" /> Padrão de Projeto
                           </span>
                         )}
-                      </h2>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto xl:self-center">
+                    <button 
+                      onClick={() => {
+                        const page = pdfIndex.find(p => p.tag === currentForm.tag)?.page || 1;
+                        setPdfPage(page);
+                        setIsPdfOpen(true);
+                      }}
+                      className="flex-1 xl:flex-none bg-blue-900/50 hover:bg-blue-800 text-blue-200 px-3 py-2 rounded-xl flex items-center justify-center gap-2 text-xs font-medium transition-colors border border-blue-800/50"
+                      title="Ver no Projeto Detalhado"
+                    >
+                      <BookOpen className="w-4 h-4" /> Projeto
+                    </button>
+                    <button 
+                      onClick={() => exportPDF([parentForm as CommissioningForm, ...(Object.values(parentForm.instruments || {}) as CommissioningForm[])])}
+                      className="flex-1 xl:flex-none bg-slate-800 hover:bg-slate-700 text-white px-3 py-2 rounded-xl flex items-center justify-center gap-2 text-xs font-medium transition-colors"
+                      title="Baixar PDF"
+                    >
+                      <Download className="w-4 h-4" /> Baixar
+                    </button>
                     {isReadOnly ? (
-                      <>
-                        <button 
-                          onClick={() => {
-                            const page = pdfIndex.find(p => p.tag === currentForm.tag)?.page || 1;
-                            setPdfPage(page);
-                            setIsPdfOpen(true);
-                          }}
-                          className="bg-blue-900/50 hover:bg-blue-800 text-blue-200 px-4 py-2 rounded-xl flex items-center gap-2 font-medium transition-colors border border-blue-800/50"
-                          title="Ver no Projeto Detalhado"
-                        >
-                          <BookOpen className="w-4 h-4" /> Projeto
-                        </button>
-                        <button 
-                          onClick={() => exportPDF([parentForm as CommissioningForm, ...(Object.values(parentForm.instruments || {}) as CommissioningForm[])])}
-                          className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl flex items-center gap-2 font-medium transition-colors"
-                          title="Baixar PDF"
-                        >
-                          <Download className="w-4 h-4" /> Baixar
-                        </button>
-                        <button 
-                          onClick={() => setIsReadOnly(false)}
-                          className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl flex items-center gap-2 font-medium transition-colors"
-                        >
-                          <Edit className="w-4 h-4" /> Editar
-                        </button>
-                      </>
+                      <button 
+                        onClick={() => setIsReadOnly(false)}
+                        className="flex-1 xl:flex-none bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-xl flex items-center justify-center gap-2 text-xs font-medium transition-colors"
+                      >
+                        <Edit className="w-4 h-4" /> Editar
+                      </button>
                     ) : (
                       <button 
                         onClick={saveForm}
-                        className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl flex items-center gap-2 font-medium transition-colors shadow-lg shadow-blue-900/20"
+                        className="flex-1 xl:flex-none bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-xl flex items-center justify-center gap-2 text-xs font-medium transition-colors shadow-lg shadow-blue-900/20"
                       >
                         <Save className="w-4 h-4" /> Salvar
                       </button>
                     )}
-                    {currentForm.id && (
+                    {(currentForm.id || savedForms.some(f => f.tag === currentForm.tag)) && (
                       <button 
-                        onClick={() => setFormToDelete(currentForm.id!)}
-                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-slate-800 rounded-xl transition-colors"
+                        onClick={() => {
+                          const id = currentForm.id || savedForms.find(f => f.tag === currentForm.tag)?.id;
+                          if (id && window.confirm(`Excluir ficha ${currentForm.tag}?`)) {
+                            setFormToDelete(id);
+                          }
+                        }}
+                        className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-900/20 rounded-xl transition-colors flex-shrink-0"
                         title="Excluir Ficha"
                       >
-                        <Trash2 className="w-5 h-5" />
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     )}
                   </div>
@@ -972,7 +1132,7 @@ function AppContent() {
                       value={currentForm.description || ''}
                       onChange={e => setCurrentForm({...currentForm, description: e.target.value})}
                       placeholder="Descrição / Função do Equipamento"
-                      className="w-full bg-slate-800/50 text-slate-200 text-sm px-3 py-1.5 rounded-lg border border-slate-700 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                      className="w-full bg-slate-800/50 text-slate-200 text-sm px-3 py-2 rounded-lg border border-slate-700 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     />
                   </div>
                 )}
@@ -1504,6 +1664,118 @@ function AppContent() {
         <p className="mt-1">Sistema de Gestão de Comissionamento Elétrico</p>
       </footer>
 
+      {/* New Item Registration Modal */}
+      <AnimatePresence>
+        {isAddingInstrument && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => { setIsAddingInstrument(false); setNewInstrumentTag(''); }}
+              className="absolute inset-0 bg-slate-900/70 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 50 }}
+              className="relative bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full sm:max-w-md"
+            >
+              <div className="p-6">
+                <div className="w-12 h-1 bg-slate-200 rounded-full mx-auto mb-6 sm:hidden" />
+                <h3 className="text-xl font-bold text-slate-800 mb-1">Cadastrar Item</h3>
+                <p className="text-sm text-slate-500 mb-6">Informe a TAG e o tipo do item a cadastrar.</p>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">TAG</label>
+                    <input
+                      type="text"
+                      value={newInstrumentTag}
+                      onChange={e => setNewInstrumentTag(e.target.value.toUpperCase())}
+                      placeholder="Ex: Z2P32 ou Z2P32M1"
+                      className="w-full px-4 py-3 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 font-bold text-lg"
+                      autoFocus
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Função / Descrição</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Motor da Bomba de Condensado"
+                      id="newItemDescription"
+                      className="w-full px-4 py-3 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Tipo do Item</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        id="btn-tipo-equip"
+                        onClick={() => {
+                          const tag = newInstrumentTag.trim();
+                          if (!tag) return;
+                          const desc = (document.getElementById('newItemDescription') as HTMLInputElement)?.value || '';
+                          setParentForm({ tag, description: desc, formType: 'motor' });
+                          setActiveInstrumentTag(null);
+                          setIsReadOnly(false);
+                          setView('form');
+                          setIsAddingInstrument(false);
+                          setNewInstrumentTag('');
+                        }}
+                        className="py-4 flex flex-col items-center gap-2 border-2 border-slate-200 hover:border-blue-500 hover:bg-blue-50 rounded-2xl transition-all"
+                      >
+                        <span className="text-2xl">⚙️</span>
+                        <span className="font-bold text-sm text-slate-700">Equipamento</span>
+                        <span className="text-[10px] text-slate-400">Motor, painel, etc.</span>
+                      </button>
+                      <button
+                        id="btn-tipo-instr"
+                        onClick={() => {
+                          const tag = newInstrumentTag.trim();
+                          if (!tag) return;
+                          const desc = (document.getElementById('newItemDescription') as HTMLInputElement)?.value || '';
+                          // Instrumento: associado ao parentForm atual ou cria novo
+                          const mainTag = getMainTag(tag);
+                          const isSubTag = mainTag !== tag;
+                          if (isSubTag && parentForm.tag === mainTag) {
+                            // Adiciona ao parentForm existente
+                            const instrData = { tag, description: desc, formType: 'instrument' as const };
+                            setParentForm(prev => ({ ...prev, instruments: { ...(prev.instruments || {}), [tag]: instrData } }));
+                            setActiveInstrumentTag(tag);
+                            setIsReadOnly(false);
+                          } else {
+                            // Cria como nova ficha de instrumento standalone
+                            setParentForm({ tag, description: desc, formType: 'instrument' });
+                            setActiveInstrumentTag(null);
+                            setIsReadOnly(false);
+                          }
+                          setView('form');
+                          setIsAddingInstrument(false);
+                          setNewInstrumentTag('');
+                        }}
+                        className="py-4 flex flex-col items-center gap-2 border-2 border-slate-200 hover:border-green-500 hover:bg-green-50 rounded-2xl transition-all"
+                      >
+                        <span className="text-2xl">📡</span>
+                        <span className="font-bold text-sm text-slate-700">Instrumento</span>
+                        <span className="text-[10px] text-slate-400">Sensor, transmissor, etc.</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => { setIsAddingInstrument(false); setNewInstrumentTag(''); }}
+                  className="mt-6 w-full py-3 text-slate-600 font-semibold text-sm hover:bg-slate-100 rounded-2xl transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Delete Confirmation Modal */}
       <AnimatePresence>
         {formToDelete !== null && (
@@ -1616,13 +1888,8 @@ function AppContent() {
         </button>
 
         <button 
-          onClick={() => {
-            setView('dashboard');
-            setTimeout(() => {
-              document.getElementById('stats-section')?.scrollIntoView({ behavior: 'smooth' });
-            }, 100);
-          }}
-          className="flex flex-col items-center gap-1 px-5 py-2.5 rounded-2xl text-slate-400 hover:text-white transition-all duration-300"
+          onClick={() => setView('dados')}
+          className={`flex flex-col items-center gap-1 px-5 py-2.5 rounded-2xl transition-all duration-300 ${view === 'dados' ? 'bg-green-600 text-white shadow-lg shadow-green-600/30' : 'text-slate-400 hover:text-white'}`}
         >
           <div className="relative">
             <Database className="w-5 h-5" />
