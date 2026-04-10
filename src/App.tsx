@@ -489,16 +489,24 @@ function AppContent() {
   const filteredData = useMemo(() => {
     if (!searchTerm) return [];
     const term = searchTerm.toLowerCase();
-    
+
     const combined = [
-      ...mockData.map(m => ({ tag: m.tag, description: m.description, type: m.type })),
-      ...instrumentList.map(i => ({ tag: i.tag, description: i.instrument, type: 'instrument' })),
-      ...savedForms.map(f => ({ tag: f.tag, description: f.description, type: f.formType }))
+      ...mockData.map(m => ({ tag: m.tag, description: m.description || '', type: m.type })),
+      // Instrumentos do CSV: filtra linhas sem tag válida e usa fallback de descrição
+      ...instrumentList
+        .filter(i => i.tag && i.tag.trim().length > 2)
+        .map(i => ({
+          tag: i.tag.trim(),
+          description: [i.instrument, i.equipment].filter(Boolean).join(' — ').substring(0, 80) || i.tag,
+          type: 'instrument' as const
+        })),
+      ...savedForms.map(f => ({ tag: f.tag, description: f.description || '', type: f.formType }))
     ];
-    
+
+    // Deduplica por tag (tags inválidas já foram filtradas acima)
     const unique = Array.from(new Map(combined.map(item => [item.tag, item])).values());
-    
-    return unique.filter(item => 
+
+    return unique.filter(item =>
       item.tag.toLowerCase().includes(term) ||
       item.description.toLowerCase().includes(term)
     ).slice(0, 50);
