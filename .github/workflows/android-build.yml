@@ -20,7 +20,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           java-version: '21'
-          distribution: 'microsoft'
+          distribution: 'temurin'
           cache: gradle
 
       - name: Set up Android SDK
@@ -37,25 +37,47 @@ jobs:
 
       - name: Build Web App
         run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       - name: Capacitor Sync
         run: npx cap sync android
+
+      - name: Generate Debug Keystore (if not exists)
+        run: |
+          mkdir -p $HOME/.android
+          if [ ! -f "$HOME/.android/debug.keystore" ]; then
+            keytool -genkeypair \
+              -keystore $HOME/.android/debug.keystore \
+              -alias androiddebugkey \
+              -keypass android \
+              -storepass android \
+              -dname "CN=Android Debug,O=Android,C=US" \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000
+            echo "✅ Debug keystore criado"
+          else
+            echo "✅ Debug keystore já existe"
+          fi
 
       - name: Debug Info
         run: |
           java -version
           javac -version
           echo "JAVA_HOME: $JAVA_HOME"
+          ls -la $HOME/.android/
 
-      - name: Run Gradle Assemble Release
+      - name: Build Debug APK
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew clean assembleRelease --stacktrace --no-daemon
+          ./gradlew clean assembleDebug --stacktrace --no-daemon -Dorg.gradle.jvmargs="-Xmx2g -XX:MaxMetaspaceSize=512m"
 
-      - name: Upload Artifact
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: comissionamento-vc-release
-          path: android/app/build/outputs/apk/release/app-release-unsigned.apk
-          retention-days: 7
+          name: comissionamento-vc-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14

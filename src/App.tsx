@@ -527,22 +527,23 @@ function AppContent() {
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
       {/* Header */}
-      <header className="sticky top-0 z-30 bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-3">
+      <header className="sticky top-0 z-30 bg-white border-b border-slate-200 px-3 py-2.5 flex items-center justify-between shadow-sm gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           {view === 'form' && (
             <button 
               onClick={() => setView('dashboard')}
-              className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+              className="p-1.5 hover:bg-slate-100 rounded-full transition-colors flex-shrink-0"
             >
-              <ChevronLeft className="w-6 h-6" />
+              <ChevronLeft className="w-5 h-5" />
             </button>
           )}
-          <h1 className="text-xl font-semibold tracking-tight text-slate-800">
+          <h1 className="text-base sm:text-xl font-semibold tracking-tight text-slate-800 truncate">
             Comissionamento <span className="text-blue-600">VC</span>
           </h1>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="hidden sm:flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Status badge — visível apenas sm+ */}
+          <div className="hidden sm:flex items-center gap-1">
             {isSyncing ? (
               <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 text-[10px] font-bold uppercase rounded-full border border-blue-100 animate-pulse">
                 <RefreshCw className="w-3 h-3 animate-spin" /> Sincronizando
@@ -557,24 +558,32 @@ function AppContent() {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            <button 
-              onClick={() => setIsPdfOpen(true)}
-              className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-lg transition-colors border border-slate-200"
-              title="Visualizar Projeto Detalhado"
-            >
-              <BookOpen className="w-4 h-4 text-blue-600" />
-              <span className="hidden sm:inline">Projeto Detalhado</span>
-            </button>
-            <div className="text-right">
-              <div className="text-xs font-bold text-slate-900">{user?.displayName || 'Usuário'}</div>
-              <div className="text-[10px] text-slate-400">Modo Offline Ativado</div>
-            </div>
+          {/* Indicador de sync compacto para mobile */}
+          <div className="sm:hidden">
+            {isSyncing ? (
+              <RefreshCw className="w-4 h-4 text-blue-500 animate-spin" />
+            ) : isOnline ? (
+              <Cloud className="w-4 h-4 text-green-500" />
+            ) : (
+              <CloudOff className="w-4 h-4 text-amber-500" />
+            )}
+          </div>
+          <button 
+            onClick={() => setIsPdfOpen(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-lg transition-colors border border-slate-200"
+            title="Visualizar Projeto Detalhado"
+          >
+            <BookOpen className="w-4 h-4 text-blue-600 flex-shrink-0" />
+            <span className="hidden sm:inline">Projeto</span>
+          </button>
+          <div className="hidden sm:block text-right">
+            <div className="text-xs font-bold text-slate-900">{user?.displayName || 'Usuário'}</div>
+            <div className="text-[10px] text-slate-400">Modo Offline</div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto p-4 md:p-8 pb-32">
+      <main className="max-w-4xl mx-auto px-3 py-4 sm:px-4 sm:py-6 md:px-8 md:py-8 pb-32">
         <AnimatePresence mode="wait">
           {view === 'dados' ? (
             <motion.div
@@ -1025,114 +1034,112 @@ function AppContent() {
               className={`bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden ${isReadOnly ? 'ficha-mode' : ''}`}
             >
               {/* Form Header */}
-              <div className="bg-slate-900 text-white p-4 sm:p-6">
-                <div className="flex flex-col xl:flex-row justify-between items-start gap-4 mb-4">
-                  <div className="flex items-start gap-3 w-full xl:w-auto">
-                    <button 
-                      onClick={() => setView('dashboard')}
-                      className="p-2 hover:bg-slate-800 rounded-xl transition-colors text-slate-400 hover:text-white mt-0.5 flex-shrink-0"
-                      title="Voltar"
-                    >
-                      <ChevronLeft className="w-6 h-6" />
-                    </button>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-blue-400 text-[10px] sm:text-xs font-bold uppercase tracking-widest mb-1">Ficha de Comissionamento</div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <div className="relative flex items-center w-full">
-                          <select 
-                            value={activeInstrumentTag || (parentForm.tag || '')}
-                            onChange={(e) => {
-                              if (e.target.value === 'NEW_INSTRUMENT') {
-                                setIsAddingInstrument(true);
-                                setNewInstrumentTag(parentForm.tag || groupTag || '');
-                                window.scrollTo({ top: 0, behavior: 'smooth' });
-                              } else {
-                                switchTag(e.target.value);
-                              }
-                            }}
-                            className="nav-select bg-slate-800/50 text-white border border-slate-700/50 hover:border-blue-500 rounded-xl pl-3 pr-8 py-2 text-sm font-bold outline-none cursor-pointer appearance-none w-full shadow-inner"
-                          >
-                            <option value={parentForm.tag || ''} className="text-slate-900 font-sans">
-                              ⚙️ {parentForm.tag} (Malha Principal)
-                            </option>
-                            {Array.from(new Set([
-                              ...relatedEquipments.filter(e => e.tag !== parentForm.tag).map(e => e.tag),
-                              ...Object.keys(parentForm.instruments || {})
-                            ])).map(tag => {
-                              const equip = relatedEquipments.find(e => e.tag === tag);
-                              const savedInstr = (parentForm.instruments as any)?.[tag];
-                              const isMotor = equip?.type === 'motor';
-                              const desc = equip?.description || savedInstr?.description || 'Instrumento';
-                              const icon = isMotor ? '⚙️' : '📡';
-                              return (
-                                <option key={tag} value={tag} className="text-slate-800 font-medium font-sans">
-                                  {icon} {tag} — {desc.substring(0, 50)}
-                                </option>
-                              );
-                            })}
-                            <option value="NEW_INSTRUMENT" className="text-green-800 font-bold bg-green-50 font-sans">
-                              ➕ + Cadastrar Novo Instrumento...
-                            </option>
-                          </select>
-                          <ChevronDown className="w-4 h-4 absolute right-2 pointer-events-none text-slate-400" />
-                        </div>
-                        {!currentForm.id && !parentForm.id && mockData.some(m => m.tag === currentForm.tag) && (
-                          <span className="text-[10px] bg-blue-900/50 text-blue-300 border border-blue-800 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3" /> Padrão de Projeto
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto xl:self-center">
-                    <button 
-                      onClick={() => {
-                        const page = pdfIndex.find(p => p.tag === currentForm.tag)?.page || 1;
-                        setPdfPage(page);
-                        setIsPdfOpen(true);
-                      }}
-                      className="flex-1 xl:flex-none bg-blue-900/50 hover:bg-blue-800 text-blue-200 px-3 py-2 rounded-xl flex items-center justify-center gap-2 text-xs font-medium transition-colors border border-blue-800/50"
-                      title="Ver no Projeto Detalhado"
-                    >
-                      <BookOpen className="w-4 h-4" /> Projeto
-                    </button>
-                    <button 
-                      onClick={() => exportPDF([parentForm as CommissioningForm, ...(Object.values(parentForm.instruments || {}) as CommissioningForm[])])}
-                      className="flex-1 xl:flex-none bg-slate-800 hover:bg-slate-700 text-white px-3 py-2 rounded-xl flex items-center justify-center gap-2 text-xs font-medium transition-colors"
-                      title="Baixar PDF"
-                    >
-                      <Download className="w-4 h-4" /> Baixar
-                    </button>
-                    {isReadOnly ? (
-                      <button 
-                        onClick={() => setIsReadOnly(false)}
-                        className="flex-1 xl:flex-none bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-xl flex items-center justify-center gap-2 text-xs font-medium transition-colors"
-                      >
-                        <Edit className="w-4 h-4" /> Editar
-                      </button>
-                    ) : (
-                      <button 
-                        onClick={saveForm}
-                        className="flex-1 xl:flex-none bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-xl flex items-center justify-center gap-2 text-xs font-medium transition-colors shadow-lg shadow-blue-900/20"
-                      >
-                        <Save className="w-4 h-4" /> Salvar
-                      </button>
-                    )}
-                    {(currentForm.id || savedForms.some(f => f.tag === currentForm.tag)) && (
-                      <button 
-                        onClick={() => {
-                          const id = currentForm.id || savedForms.find(f => f.tag === currentForm.tag)?.id;
-                          if (id && window.confirm(`Excluir ficha ${currentForm.tag}?`)) {
-                            setFormToDelete(id);
+              <div className="bg-slate-900 text-white p-3 sm:p-5">
+                {/* Row 1: back + tag selector */}
+                <div className="flex items-start gap-2 mb-3">
+                  <button 
+                    onClick={() => setView('dashboard')}
+                    className="p-1.5 hover:bg-slate-800 rounded-xl transition-colors text-slate-400 hover:text-white mt-0.5 flex-shrink-0"
+                    title="Voltar"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-blue-400 text-[10px] font-bold uppercase tracking-widest mb-1">Ficha de Comissionamento</div>
+                    <div className="relative flex items-center w-full">
+                      <select 
+                        value={activeInstrumentTag || (parentForm.tag || '')}
+                        onChange={(e) => {
+                          if (e.target.value === 'NEW_INSTRUMENT') {
+                            setIsAddingInstrument(true);
+                            setNewInstrumentTag(parentForm.tag || groupTag || '');
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          } else {
+                            switchTag(e.target.value);
                           }
                         }}
-                        className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-900/20 rounded-xl transition-colors flex-shrink-0"
-                        title="Excluir Ficha"
+                        className="nav-select bg-slate-800/50 text-white border border-slate-700/50 hover:border-blue-500 rounded-xl pl-3 pr-8 py-2 text-sm font-bold outline-none cursor-pointer appearance-none w-full shadow-inner"
                       >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                        <option value={parentForm.tag || ''} className="text-slate-900 font-sans">
+                          ⚙️ {parentForm.tag} (Malha Principal)
+                        </option>
+                        {Array.from(new Set([
+                          ...relatedEquipments.filter(e => e.tag !== parentForm.tag).map(e => e.tag),
+                          ...Object.keys(parentForm.instruments || {})
+                        ])).map(tag => {
+                          const equip = relatedEquipments.find(e => e.tag === tag);
+                          const savedInstr = (parentForm.instruments as any)?.[tag];
+                          const isMotor = equip?.type === 'motor';
+                          const desc = equip?.description || savedInstr?.description || 'Instrumento';
+                          const icon = isMotor ? '⚙️' : '📡';
+                          return (
+                            <option key={tag} value={tag} className="text-slate-800 font-medium font-sans">
+                              {icon} {tag} — {desc.substring(0, 40)}
+                            </option>
+                          );
+                        })}
+                        <option value="NEW_INSTRUMENT" className="text-green-800 font-bold bg-green-50 font-sans">
+                          ➕ + Cadastrar Novo Instrumento...
+                        </option>
+                      </select>
+                      <ChevronDown className="w-4 h-4 absolute right-2 pointer-events-none text-slate-400" />
+                    </div>
+                    {!currentForm.id && !parentForm.id && mockData.some(m => m.tag === currentForm.tag) && (
+                      <span className="mt-1 inline-flex text-[10px] bg-blue-900/50 text-blue-300 border border-blue-800 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" /> Padrão de Projeto
+                      </span>
                     )}
                   </div>
+                </div>
+                {/* Row 2: action buttons — scrollable on very small screens */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                  <button 
+                    onClick={() => {
+                      const page = pdfIndex.find(p => p.tag === currentForm.tag)?.page || 1;
+                      setPdfPage(page);
+                      setIsPdfOpen(true);
+                    }}
+                    className="flex-shrink-0 bg-blue-900/50 hover:bg-blue-800 text-blue-200 px-3 py-2 rounded-xl flex items-center gap-1.5 text-xs font-medium transition-colors border border-blue-800/50 whitespace-nowrap"
+                    title="Ver no Projeto Detalhado"
+                  >
+                    <BookOpen className="w-4 h-4" /> Projeto
+                  </button>
+                  <button 
+                    onClick={() => exportPDF([parentForm as CommissioningForm, ...(Object.values(parentForm.instruments || {}) as CommissioningForm[])])}
+                    className="flex-shrink-0 bg-slate-800 hover:bg-slate-700 text-white px-3 py-2 rounded-xl flex items-center gap-1.5 text-xs font-medium transition-colors whitespace-nowrap"
+                    title="Baixar PDF"
+                  >
+                    <Download className="w-4 h-4" /> Baixar
+                  </button>
+                  {isReadOnly ? (
+                    <button 
+                      onClick={() => setIsReadOnly(false)}
+                      className="flex-shrink-0 bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-xl flex items-center gap-1.5 text-xs font-medium transition-colors whitespace-nowrap"
+                    >
+                      <Edit className="w-4 h-4" /> Editar
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={saveForm}
+                      className="flex-shrink-0 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl flex items-center gap-1.5 text-xs font-medium transition-colors shadow-lg shadow-blue-900/20 whitespace-nowrap"
+                    >
+                      <Save className="w-4 h-4" /> Salvar
+                    </button>
+                  )}
+                  {(currentForm.id || savedForms.some(f => f.tag === currentForm.tag)) && (
+                    <button 
+                      onClick={() => {
+                        const id = currentForm.id || savedForms.find(f => f.tag === currentForm.tag)?.id;
+                        if (id && window.confirm(`Excluir ficha ${currentForm.tag}?`)) {
+                          setFormToDelete(id);
+                        }
+                      }}
+                      className="flex-shrink-0 p-2 text-slate-400 hover:text-red-400 hover:bg-red-900/20 rounded-xl transition-colors"
+                      title="Excluir Ficha"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
                 {isReadOnly ? (
                   <p className="text-slate-400 text-sm leading-relaxed">
@@ -1152,7 +1159,7 @@ function AppContent() {
               </div>
 
               {/* Form Body */}
-              <fieldset disabled={isReadOnly} className="p-6 space-y-8">
+              <fieldset disabled={isReadOnly} className="p-3 sm:p-6 space-y-6 sm:space-y-8">
                 {/* Section 1: Technical Data */}
                 <section className="space-y-4">
                   <div className="flex items-center justify-between">
@@ -1224,7 +1231,7 @@ function AppContent() {
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-2 xs:grid-cols-2 gap-3 sm:gap-4">
                           <div className="space-y-1">
                             <label className="text-xs font-medium text-slate-500 ml-1">Potência (kW/cv)</label>
                             <input 
@@ -1630,7 +1637,9 @@ function AppContent() {
                           <input 
                             type="file" 
                             accept="image/*" 
-                            capture="environment" 
+                            capture="environment"
+                            className="hidden"
+                            onChange={handlePhotoUpload}
                           />
                         </label>
                         <label className="cursor-pointer bg-slate-800 hover:bg-slate-700 text-white px-6 py-2.5 rounded-xl flex items-center gap-2 font-medium transition-all shadow-lg shadow-slate-900/20 active:scale-95">
