@@ -1677,28 +1677,39 @@ function AppContent() {
                         </>
                       )}
                       <div className="flex flex-wrap justify-center gap-3">
-                        <label className="cursor-pointer bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-xl flex items-center gap-2 font-medium transition-all shadow-lg shadow-blue-900/20 active:scale-95">
+                        {/* disabled={false} sobrescreve o fieldset disabled para que fotos
+                            possam ser adicionadas mesmo no modo de leitura */}
+                        <label
+                          className="cursor-pointer bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-xl flex items-center gap-2 font-medium transition-all shadow-lg shadow-blue-900/20 active:scale-95"
+                          onClick={() => { if (isReadOnly) setIsReadOnly(false); }}
+                        >
                           <Camera className="w-5 h-5" />
                           Tirar Foto
-                          <input 
-                            type="file" 
-                            accept="image/*" 
+                          <input
+                            type="file"
+                            accept="image/*"
                             capture="environment"
+                            disabled={false}
                             className="hidden"
                             onChange={handlePhotoUpload}
                           />
                         </label>
-                        <label className="cursor-pointer bg-slate-800 hover:bg-slate-700 text-white px-6 py-2.5 rounded-xl flex items-center gap-2 font-medium transition-all shadow-lg shadow-slate-900/20 active:scale-95">
+                        <label
+                          className="cursor-pointer bg-slate-800 hover:bg-slate-700 text-white px-6 py-2.5 rounded-xl flex items-center gap-2 font-medium transition-all shadow-lg shadow-slate-900/20 active:scale-95"
+                          onClick={() => { if (isReadOnly) setIsReadOnly(false); }}
+                        >
                           <Image className="w-5 h-5" />
-                          Anexar
-                          <input 
-                            type="file" 
-                            accept="image/*" 
-                            className="hidden" 
+                          Anexar Imagem
+                          <input
+                            type="file"
+                            accept="image/*"
+                            disabled={false}
+                            className="hidden"
                             onChange={handlePhotoUpload}
                           />
                         </label>
                       </div>
+
                     </div>
                   </div>
                 </section>
