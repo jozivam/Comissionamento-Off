@@ -1061,7 +1061,7 @@ function AppContent() {
                         className="nav-select bg-slate-800/50 text-white border border-slate-700/50 hover:border-blue-500 rounded-xl pl-3 pr-8 py-2 text-sm font-bold outline-none cursor-pointer appearance-none w-full shadow-inner"
                       >
                         <option value={parentForm.tag || ''} className="text-slate-900 font-sans">
-                          ⚙️ {parentForm.tag} (Malha Principal)
+                          ⚙️ {parentForm.tag}{activeInstrumentTag ? '' : (parentForm.description ? ` — ${parentForm.description.substring(0, 35)}` : ' (Malha Principal)')}
                         </option>
                         {Array.from(new Set([
                           ...relatedEquipments.filter(e => e.tag !== parentForm.tag).map(e => e.tag),
@@ -1070,7 +1070,11 @@ function AppContent() {
                           const equip = relatedEquipments.find(e => e.tag === tag);
                           const savedInstr = (parentForm.instruments as any)?.[tag];
                           const isMotor = equip?.type === 'motor';
-                          const desc = equip?.description || savedInstr?.description || 'Instrumento';
+                          // Se é o item atualmente selecionado, usa a descrição ao vivo do form
+                          const isActive = tag === activeInstrumentTag;
+                          const desc = isActive
+                            ? (currentForm.description || equip?.description || savedInstr?.description || 'Instrumento')
+                            : (equip?.description || savedInstr?.description || 'Instrumento');
                           const icon = isMotor ? '⚙️' : '📡';
                           return (
                             <option key={tag} value={tag} className="text-slate-800 font-medium font-sans">
@@ -1192,6 +1196,16 @@ function AppContent() {
                     {currentForm.formType === 'motor' ? (
                       <>
                         <div className="space-y-4">
+                          <div className="space-y-1">
+                            <label className="text-xs font-medium text-slate-500 ml-1">Função / Descrição</label>
+                            <input 
+                              type="text" 
+                              value={currentForm.description || ''}
+                              onChange={e => setCurrentForm({...currentForm, description: e.target.value})}
+                              placeholder="Ex: Motor da Correia Transportadora"
+                              className="w-full px-4 py-2.5 bg-blue-50/50 border border-blue-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"
+                            />
+                          </div>
                           <div className="space-y-1">
                             <label className="text-xs font-medium text-slate-500 ml-1">Fabricante</label>
                             <input 
