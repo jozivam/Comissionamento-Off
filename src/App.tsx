@@ -1171,7 +1171,8 @@ function AppContent() {
               </div>
 
               {/* Form Body */}
-              <fieldset disabled={isReadOnly} className="p-3 sm:p-6 space-y-6 sm:space-y-8">
+              <div className="p-3 sm:p-6 space-y-6 sm:space-y-8">
+                <fieldset disabled={isReadOnly} className="space-y-6 sm:space-y-8 border-0 p-0 m-0 min-w-0">
                 {/* Section 1: Technical Data */}
                 <section className="space-y-4">
                   <div className="flex items-center justify-between">
@@ -1632,6 +1633,8 @@ function AppContent() {
                   </div>
                 </section>
 
+                </fieldset>
+
                 {/* Section 5: Photos */}
                 <section className="space-y-4">
                   <div className="flex items-center justify-between">
@@ -1714,7 +1717,7 @@ function AppContent() {
                   </div>
                 </section>
                 {/* Universal Loop Navigation Section Removed (Moved to Dropdown Header) */}
-              </fieldset>
+              </div>
               
               {!isReadOnly && (
                 <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
