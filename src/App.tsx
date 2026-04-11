@@ -515,17 +515,66 @@ function AppContent() {
       item.description.toLowerCase().includes(term)
     ).slice(0, 50);
   }, [searchTerm, savedForms, mockData, instrumentList]);
+  const resizeImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          
+          // Max dimensions
+          const MAX_WIDTH = 1200;
+          const MAX_HEIGHT = 1200;
 
-  const handlePhotoUpload = (e: ChangeEvent<HTMLInputElement>) => {
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height = Math.round((height *= MAX_WIDTH / width));
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width = Math.round((width *= MAX_HEIGHT / height));
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            // Salvar comprimido como JPEG em 70% de qualidade
+            resolve(canvas.toDataURL('image/jpeg', 0.7));
+          } else {
+            resolve(e.target?.result as string);
+          }
+        };
+        img.onerror = () => reject(new Error('Erro ao processar imagem'));
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => reject(new Error('Erro na leitura do arquivo'));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handlePhotoUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    e.preventDefault();
     if (isReadOnly) setIsReadOnly(false);
+    
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
+      try {
+        const resizedBase64 = await resizeImage(file);
         const currentPhotos = currentForm.photos || [];
-        setCurrentForm({ ...currentForm, photos: [...currentPhotos, reader.result as string] });
-      };
-      reader.readAsDataURL(file);
+        setCurrentForm({ ...currentForm, photos: [...currentPhotos, resizedBase64] });
+      } catch (error) {
+        console.error('Falha ao processar foto:', error);
+        alert('Houve um erro ao processar a foto. Tente novamente.');
+      }
     }
   };
 
