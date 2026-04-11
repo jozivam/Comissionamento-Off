@@ -62,6 +62,10 @@ function AppContent() {
     return parentForm;
   }, [parentForm, activeInstrumentTag]);
 
+  // Refs for hidden file inputs
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+
   const setCurrentForm = (updated: any) => {
     if (activeInstrumentTag) {
       setParentForm(prev => {
@@ -936,10 +940,11 @@ function AppContent() {
                 
                 {(() => {
                   const term = savedSearchTerm.toLowerCase();
-                  const groupedForms = savedForms.reduce((acc, form) => {
-                    const mainTag = getMainTag(form.tag);
-                    if (!acc[mainTag]) acc[mainTag] = [];
-                    acc[mainTag].push(form);
+                  const okForms = savedForms.filter(f => f.status === 'completed');
+                  const groupedForms = okForms.reduce((acc, form) => {
+                    const coverTag = (form.formType === 'instrument' && form.linkedEquipment) ? form.linkedEquipment : form.tag;
+                    if (!acc[coverTag]) acc[coverTag] = [];
+                    acc[coverTag].push(form);
                     return acc;
                   }, {} as Record<string, CommissioningForm[]>);
 
@@ -1680,41 +1685,76 @@ function AppContent() {
                         </>
                       )}
                       <div className="flex flex-wrap justify-center gap-3">
-                        {/* disabled={false} sobrescreve o fieldset disabled para que fotos
-                            possam ser adicionadas mesmo no modo de leitura */}
-                        <label
-                          className="cursor-pointer bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-xl flex items-center gap-2 font-medium transition-all shadow-lg shadow-blue-900/20 active:scale-95"
-                          onClick={() => { if (isReadOnly) setIsReadOnly(false); }}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (isReadOnly) setIsReadOnly(false);
+                            if (cameraInputRef.current) {
+                              cameraInputRef.current.value = '';
+                              cameraInputRef.current.click();
+                            }
+                          }}
+                          className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-xl flex items-center gap-2 font-medium transition-all shadow-lg shadow-blue-900/20 active:scale-95"
                         >
                           <Camera className="w-5 h-5" />
                           Tirar Foto
-                          <input
-                            type="file"
-                            accept="image/*"
-                            capture="environment"
-                            disabled={false}
-                            className="hidden"
-                            onChange={handlePhotoUpload}
-                          />
-                        </label>
-                        <label
-                          className="cursor-pointer bg-slate-800 hover:bg-slate-700 text-white px-6 py-2.5 rounded-xl flex items-center gap-2 font-medium transition-all shadow-lg shadow-slate-900/20 active:scale-95"
-                          onClick={() => { if (isReadOnly) setIsReadOnly(false); }}
+                        </button>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          ref={cameraInputRef}
+                          className="hidden"
+                          onChange={handlePhotoUpload}
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (isReadOnly) setIsReadOnly(false);
+                            if (galleryInputRef.current) {
+                              galleryInputRef.current.value = '';
+                              galleryInputRef.current.click();
+                            }
+                          }}
+                          className="bg-slate-800 hover:bg-slate-700 text-white px-6 py-2.5 rounded-xl flex items-center gap-2 font-medium transition-all shadow-lg shadow-slate-900/20 active:scale-95"
                         >
                           <Image className="w-5 h-5" />
                           Anexar Imagem
-                          <input
-                            type="file"
-                            accept="image/*"
-                            disabled={false}
-                            className="hidden"
-                            onChange={handlePhotoUpload}
-                          />
-                        </label>
+                        </button>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          ref={galleryInputRef}
+                          className="hidden"
+                          onChange={handlePhotoUpload}
+                        />
                       </div>
 
                     </div>
                   </div>
+                </section>
+
+                {/* Section 6: Status de Aprovação (Compacto) */}
+                <section className="bg-slate-50 rounded-2xl p-4 border border-slate-200 mt-6">
+                  <label className="flex items-center justify-between cursor-pointer group">
+                    <div className="flex flex-col">
+                      <p className={`font-bold transition-colors ${currentForm.status === 'completed' ? 'text-green-600' : 'text-slate-800'}`}>
+                        {currentForm.status === 'completed' ? '✓ Ficha Marcada como OK' : 'Marcar Ficha como OK'}
+                      </p>
+                      <p className="text-xs text-slate-500">Obrigatório para aparecer nas Fichas Salvas no Dashboard.</p>
+                    </div>
+                    <div className="relative flex items-center shrink-0">
+                      <input 
+                        type="checkbox" 
+                        disabled={isReadOnly}
+                        checked={currentForm.status === 'completed'}
+                        onChange={(e) => setCurrentForm({...currentForm, status: e.target.checked ? 'completed' : 'draft'})}
+                        className="peer sr-only"
+                      />
+                      <div className={`w-12 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all ${isReadOnly ? 'opacity-50' : 'peer-checked:bg-green-500'}`}></div>
+                    </div>
+                  </label>
                 </section>
                 {/* Universal Loop Navigation Section Removed (Moved to Dropdown Header) */}
               </div>
